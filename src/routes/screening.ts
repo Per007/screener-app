@@ -81,6 +81,16 @@ router.get('/screening-results/:id', authenticate, async (req, res, next) => {
   }
 });
 
+// Delete a screening result
+router.delete('/screening-results/:id', authenticate, async (req, res, next) => {
+  try {
+    const result = await screeningService.deleteScreeningResult(req.params.id);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Screen individual company
 router.post('/screen/company', authenticate, async (req: AuthRequest, res: Response, next) => {
   try {

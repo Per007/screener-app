@@ -5,9 +5,9 @@ import { Disclosure } from '@headlessui/react';
 import { Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
 
 const navigation = [
-  { name: 'Portfolios', href: '/portfolios' },
-  { name: 'Criteria Sets', href: '/criteria-sets' },
   { name: 'Results', href: '/run-screening' },
+  { name: 'Criteria Sets', href: '/criteria-sets' },
+  { name: 'Portfolios', href: '/portfolios' },
   { name: 'Screening Tools', href: '/screening-tools' },
   { name: 'Reports', href: '/reports' },
 ];

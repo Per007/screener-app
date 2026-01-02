@@ -142,6 +142,11 @@ const RunScreeningPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [screening, setScreening] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Delete state
+  const [deletingScreeningId, setDeletingScreeningId] = useState<string | null>(null);
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
+  const [screeningToDelete, setScreeningToDelete] = useState<string | null>(null);
 
   /**
    * Fetch portfolios and criteria sets on mount
@@ -272,6 +277,34 @@ const RunScreeningPage: React.FC = () => {
   };
 
   /**
+   * Handle delete screening result
+   */
+  const handleDeleteScreening = async () => {
+    if (!screeningToDelete) return;
+
+    try {
+      setDeletingScreeningId(screeningToDelete);
+      await apiService.deleteScreeningResult(screeningToDelete);
+
+      // Remove the deleted screening from history
+      const updatedHistory = historicalResults.filter(s => s.id !== screeningToDelete);
+      setHistoricalResults(updatedHistory);
+
+      // If we deleted the currently selected result, clear it
+      if (selectedHistoricalResult?.id === screeningToDelete) {
+        setSelectedHistoricalResult(null);
+      }
+
+      setShowDeleteConfirmModal(false);
+      setScreeningToDelete(null);
+    } catch (err: any) {
+      setError(err.message || 'Failed to delete screening result');
+    } finally {
+      setDeletingScreeningId(null);
+    }
+  };
+
+  /**
    * Export screening results to CSV
    */
   const handleExport = (result: ScreeningResult) => {
@@ -370,6 +403,34 @@ const RunScreeningPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Warning for Missing Data */}
+      {(() => {
+        // Check if any rule results have missing actual values
+        const hasMissingData = result.results.some(companyResult =>
+          companyResult.ruleResults.some(rule => rule.actualValue === undefined)
+        );
+        
+        if (hasMissingData) {
+          return (
+            <div className="px-6 py-3 bg-amber-50 border-b border-amber-200">
+              <div className="flex items-start gap-2">
+                <svg className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                <div className="flex-1">
+                  <div className="text-sm font-medium text-amber-800">Missing Parameter Data Detected</div>
+                  <div className="text-sm text-amber-700 mt-1">
+                    Some companies are missing parameter values required for screening. Rules with missing data show "N/A" and automatically fail. 
+                    Import parameter values via CSV or the API to get accurate screening results.
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        }
+        return null;
+      })()}
+
       {/* Company Results Table */}
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
@@ -425,15 +486,17 @@ const RunScreeningPage: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500">
                       {failedExclusionRules.length > 0 ? (
-                        <div className="max-w-md">
+                        <div className="max-w-md space-y-1">
                           {failedExclusionRules.slice(0, 2).map((rule) => (
-                            <div key={rule.ruleId} className="text-red-600 text-xs">
-                              <span className="font-medium">{rule.ruleName}:</span>{' '}
+                            <div key={rule.ruleId} className="flex items-center gap-2 text-xs">
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-medium">
+                                ✗ Excluded
+                              </span>
+                              <span className="text-gray-700">{rule.ruleName}</span>
                               {rule.actualValue !== undefined && (
-                                <span className="font-mono">{String(rule.actualValue)}</span>
-                              )}
-                              {rule.threshold && (
-                                <span className="text-gray-500"> (should be {rule.threshold})</span>
+                                <span className="text-gray-500">
+                                  (actual: <span className="font-mono text-red-600 font-medium">{String(rule.actualValue)}</span>)
+                                </span>
                               )}
                             </div>
                           ))}
@@ -474,8 +537,8 @@ const RunScreeningPage: React.FC = () => {
                           <thead className="bg-gray-100">
                             <tr>
                               <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Rule</th>
-                              <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Threshold</th>
                               <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Actual Value</th>
+                              <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Threshold</th>
                               <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                               <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Excluded</th>
                             </tr>
@@ -489,17 +552,38 @@ const RunScreeningPage: React.FC = () => {
                                 <td className="px-4 py-2 text-sm text-gray-900">
                                   {ruleResult.ruleName}
                                 </td>
-                                <td className="px-4 py-2 text-sm text-gray-600 font-mono">
-                                  {ruleResult.threshold || '-'}
-                                </td>
                                 <td className="px-4 py-2 text-sm font-mono">
                                   {ruleResult.actualValue !== undefined ? (
                                     <span className={ruleResult.passed ? 'text-green-700 font-medium' : 'text-red-700 font-medium'}>
                                       {String(ruleResult.actualValue)}
                                     </span>
                                   ) : (
-                                    <span className="text-gray-400 italic">N/A</span>
+                                    <div className="flex items-center gap-1 group relative">
+                                      <span className="text-amber-600 italic font-medium">N/A</span>
+                                      <svg 
+                                        className="w-4 h-4 text-amber-500 cursor-help" 
+                                        fill="none" 
+                                        stroke="currentColor" 
+                                        viewBox="0 0 24 24"
+                                      >
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                      </svg>
+                                      {/* Tooltip */}
+                                      <div className="absolute left-0 top-6 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                                        <div className="font-semibold mb-1">Missing Data</div>
+                                        <div>
+                                          {ruleResult.failureReason && ruleResult.failureReason.includes('Missing value for parameter:') ? (
+                                            <span>{ruleResult.failureReason}</span>
+                                          ) : (
+                                            <span>No data available for this parameter. Import parameter values to see actual results.</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
                                   )}
+                                </td>
+                                <td className="px-4 py-2 text-sm text-gray-600 font-mono">
+                                  {ruleResult.threshold || '-'}
                                 </td>
                                 <td className="px-4 py-2 whitespace-nowrap">
                                   {ruleResult.passed ? (
@@ -665,13 +749,15 @@ const RunScreeningPage: React.FC = () => {
               </div>
               <div className="divide-y divide-gray-200">
                 {historicalResults.map((result) => (
-                  <button
+                  <div
                     key={result.id}
-                    onClick={() => viewHistoricalDetail(result.id)}
-                    className="w-full px-6 py-4 hover:bg-gray-50 text-left transition-colors"
+                    className="w-full px-6 py-4 hover:bg-gray-50 transition-colors"
                   >
                     <div className="flex items-center justify-between">
-                      <div className="flex-1">
+                      <button
+                        onClick={() => viewHistoricalDetail(result.id)}
+                        className="flex-1 text-left"
+                      >
                         <div className="flex items-center gap-3">
                           <h3 className="text-sm font-medium text-gray-900">
                             {result.portfolio.name}
@@ -696,12 +782,28 @@ const RunScreeningPage: React.FC = () => {
                           {formatDate(result.screenedAt)}
                           {result.user && ` by ${result.user.name || result.user.email}`}
                         </div>
+                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setScreeningToDelete(result.id);
+                            setShowDeleteConfirmModal(true);
+                          }}
+                          disabled={deletingScreeningId === result.id}
+                          className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-md transition-colors disabled:opacity-50"
+                          title="Delete screening"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                        <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
                       </div>
-                      <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
                     </div>
-                  </button>
+                  </div>
                 ))}
               </div>
             </div>
@@ -817,6 +919,51 @@ const RunScreeningPage: React.FC = () => {
             </div>
           )}
         </>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirmModal && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium text-gray-900">Delete Screening</h3>
+              <button
+                onClick={() => {
+                  setShowDeleteConfirmModal(false);
+                  setScreeningToDelete(null);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <p className="text-gray-600">
+                Are you sure you want to delete this screening result? This action cannot be undone.
+              </p>
+            </div>
+
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setShowDeleteConfirmModal(false);
+                  setScreeningToDelete(null);
+                }}
+                className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteScreening}
+                disabled={deletingScreeningId !== null}
+                className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {deletingScreeningId !== null ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

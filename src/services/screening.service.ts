@@ -96,8 +96,8 @@ export async function screenPortfolio(input: ScreeningInput) {
   // Get company IDs in portfolio
   const companyIds = portfolio.holdings.map((h) => h.companyId);
 
-  // Fetch parameter values for all companies
-  const parameterValues = await prisma.companyParameterValue.findMany({
+  // Fetch parameter values for all companies (with date filter)
+  let parameterValues = await prisma.companyParameterValue.findMany({
     where: {
       companyId: { in: companyIds },
       asOfDate: { lte: asOfDate }
@@ -105,6 +105,21 @@ export async function screenPortfolio(input: ScreeningInput) {
     include: { parameter: true },
     orderBy: { asOfDate: 'desc' }
   });
+
+  // If no values found with date filter for some companies, get most recent values regardless of date
+  const companiesWithValues = new Set(parameterValues.map(pv => pv.companyId));
+  const companiesWithoutValues = companyIds.filter(id => !companiesWithValues.has(id));
+  
+  if (companiesWithoutValues.length > 0) {
+    const fallbackValues = await prisma.companyParameterValue.findMany({
+      where: {
+        companyId: { in: companiesWithoutValues }
+      },
+      include: { parameter: true },
+      orderBy: { asOfDate: 'desc' }
+    });
+    parameterValues = [...parameterValues, ...fallbackValues];
+  }
 
   // Build parameter value maps per company (most recent value for each parameter)
   const companyParamMaps = new Map<string, Map<string, number | boolean | string>>();
@@ -123,6 +138,21 @@ export async function screenPortfolio(input: ScreeningInput) {
     }
   }
 
+  // Debug: Log parameter availability for portfolio screening
+  const ruleParameters = criteriaSet.rules.map(rule => {
+    try {
+      const expr = JSON.parse(rule.expression);
+      return expr.type === 'comparison' ? expr.parameter : null;
+    } catch {
+      return null;
+    }
+  }).filter(p => p !== null) as string[];
+
+  console.log(`\n[Portfolio Screening] Portfolio: ${portfolio.name} (${portfolioId})`);
+  console.log(`[Portfolio Screening] Companies in portfolio: ${companyIds.length}`);
+  console.log(`[Portfolio Screening] Total parameter values found: ${parameterValues.length}`);
+  console.log(`[Portfolio Screening] Parameters expected by rules:`, ruleParameters);
+
   // Screen each company
   const companyResults: CompanyScreeningResult[] = [];
   let passedCount = 0;
@@ -131,6 +161,26 @@ export async function screenPortfolio(input: ScreeningInput) {
   for (const holding of portfolio.holdings) {
     const company = holding.company;
     const paramMap = companyParamMaps.get(company.id)!;
+    
+    // Debug logging for each company with missing parameters
+    const foundParams = Array.from(paramMap.keys());
+    const missingParams = ruleParameters.filter(p => !foundParams.includes(p));
+    
+    if (missingParams.length > 0) {
+      const companyValues = parameterValues.filter(pv => pv.companyId === company.id);
+      console.log(`\n[Portfolio Screening] Company: ${company.name} (${company.id})`);
+      console.log(`[Portfolio Screening]   Missing parameters:`, missingParams);
+      console.log(`[Portfolio Screening]   Found parameters:`, foundParams);
+      console.log(`[Portfolio Screening]   Parameter values in DB for this company: ${companyValues.length}`);
+      if (companyValues.length > 0) {
+        console.log(`[Portfolio Screening]   Raw values:`);
+        companyValues.forEach(pv => {
+          console.log(`     - ${pv.parameter.name}: ${pv.value} (asOfDate: ${pv.asOfDate.toISOString()})`);
+        });
+      } else {
+        console.log(`[Portfolio Screening]   ⚠️ NO PARAMETER VALUES FOUND IN DATABASE FOR THIS COMPANY`);
+      }
+    }
 
     const ruleResults: RuleResult[] = [];
     let companyPassed = true;
@@ -315,8 +365,8 @@ export async function screenIndividualCompany(input: IndividualCompanyScreeningI
     throw new AppError('Criteria set not found', 404);
   }
 
-  // Fetch parameter values for the company
-  const parameterValues = await prisma.companyParameterValue.findMany({
+  // Fetch parameter values for the company (with date filter)
+  let parameterValues = await prisma.companyParameterValue.findMany({
     where: {
       companyId,
       asOfDate: { lte: asOfDate }
@@ -324,6 +374,18 @@ export async function screenIndividualCompany(input: IndividualCompanyScreeningI
     include: { parameter: true },
     orderBy: { asOfDate: 'desc' }
   });
+
+  // If no values found with date filter, try to get the most recent values regardless of date
+  // This handles cases where values exist but have a future asOfDate
+  if (parameterValues.length === 0) {
+    parameterValues = await prisma.companyParameterValue.findMany({
+      where: {
+        companyId
+      },
+      include: { parameter: true },
+      orderBy: { asOfDate: 'desc' }
+    });
+  }
 
   // Build parameter value map (most recent value for each parameter)
   const paramMap = new Map<string, number | boolean | string>();
@@ -334,6 +396,40 @@ export async function screenIndividualCompany(input: IndividualCompanyScreeningI
       const value = JSON.parse(pv.value);
       paramMap.set(pv.parameter.name, value);
     }
+  }
+
+  // Debug: Log what parameters were found vs what rules expect
+  const ruleParameters = criteriaSet.rules.map(rule => {
+    try {
+      const expr = JSON.parse(rule.expression);
+      return expr.type === 'comparison' ? expr.parameter : null;
+    } catch {
+      return null;
+    }
+  }).filter(p => p !== null) as string[];
+
+  const foundParams = Array.from(paramMap.keys());
+  const missingParams = ruleParameters.filter(p => !foundParams.includes(p));
+  
+  // Enhanced logging for debugging
+  console.log(`\n[Screening Debug] Company: ${company.name} (${companyId})`);
+  console.log(`[Screening Debug] Screening asOfDate: ${asOfDate.toISOString()}`);
+  console.log(`[Screening Debug] Parameter values found in DB: ${parameterValues.length}`);
+  console.log(`[Screening Debug] Parameters expected by rules:`, ruleParameters);
+  console.log(`[Screening Debug] Parameters found in paramMap:`, foundParams);
+  
+  if (parameterValues.length > 0) {
+    console.log(`[Screening Debug] Raw parameter values from DB:`);
+    parameterValues.forEach(pv => {
+      console.log(`  - ${pv.parameter.name}: ${pv.value} (asOfDate: ${pv.asOfDate.toISOString()})`);
+    });
+  }
+  
+  if (missingParams.length > 0) {
+    console.log(`[Screening Debug] ⚠️ MISSING PARAMETERS:`, missingParams);
+    console.log(`[Screening Debug] This will cause rules to fail with N/A values\n`);
+  } else {
+    console.log(`[Screening Debug] ✓ All required parameters found\n`);
   }
 
   // Screen the company
@@ -417,8 +513,8 @@ export async function screenMultipleCompanies(input: MultipleCompaniesScreeningI
     throw new AppError('No companies found', 404);
   }
 
-  // Fetch parameter values for all companies
-  const parameterValues = await prisma.companyParameterValue.findMany({
+  // Fetch parameter values for all companies (with date filter)
+  let parameterValues = await prisma.companyParameterValue.findMany({
     where: {
       companyId: { in: companyIds },
       asOfDate: { lte: asOfDate }
@@ -426,6 +522,21 @@ export async function screenMultipleCompanies(input: MultipleCompaniesScreeningI
     include: { parameter: true },
     orderBy: { asOfDate: 'desc' }
   });
+
+  // If no values found with date filter for some companies, get most recent values regardless of date
+  const companiesWithValues = new Set(parameterValues.map(pv => pv.companyId));
+  const companiesWithoutValues = companyIds.filter(id => !companiesWithValues.has(id));
+  
+  if (companiesWithoutValues.length > 0) {
+    const fallbackValues = await prisma.companyParameterValue.findMany({
+      where: {
+        companyId: { in: companiesWithoutValues }
+      },
+      include: { parameter: true },
+      orderBy: { asOfDate: 'desc' }
+    });
+    parameterValues = [...parameterValues, ...fallbackValues];
+  }
 
   // Build parameter value maps per company (most recent value for each parameter)
   const companyParamMaps = new Map<string, Map<string, number | boolean | string>>();
@@ -547,15 +658,31 @@ export async function screenBySector(input: SectorScreeningInput) {
     throw new AppError(`No companies found in sector: ${sector}`, 404);
   }
 
-  // Fetch parameter values for all companies
-  const parameterValues = await prisma.companyParameterValue.findMany({
+  // Fetch parameter values for all companies (with date filter)
+  const companyIds = companies.map(c => c.id);
+  let parameterValues = await prisma.companyParameterValue.findMany({
     where: {
-      companyId: { in: companies.map(c => c.id) },
+      companyId: { in: companyIds },
       asOfDate: { lte: asOfDate }
     },
     include: { parameter: true },
     orderBy: { asOfDate: 'desc' }
   });
+
+  // If no values found with date filter for some companies, get most recent values regardless of date
+  const companiesWithValues = new Set(parameterValues.map(pv => pv.companyId));
+  const companiesWithoutValues = companyIds.filter(id => !companiesWithValues.has(id));
+  
+  if (companiesWithoutValues.length > 0) {
+    const fallbackValues = await prisma.companyParameterValue.findMany({
+      where: {
+        companyId: { in: companiesWithoutValues }
+      },
+      include: { parameter: true },
+      orderBy: { asOfDate: 'desc' }
+    });
+    parameterValues = [...parameterValues, ...fallbackValues];
+  }
 
   // Build parameter value maps per company (most recent value for each parameter)
   const companyParamMaps = new Map<string, Map<string, number | boolean | string>>();
@@ -681,15 +808,31 @@ export async function screenByRegion(input: RegionScreeningInput) {
     throw new AppError('No companies found', 404);
   }
 
-  // Fetch parameter values for all companies
-  const parameterValues = await prisma.companyParameterValue.findMany({
+  // Fetch parameter values for all companies (with date filter)
+  const companyIds = companies.map(c => c.id);
+  let parameterValues = await prisma.companyParameterValue.findMany({
     where: {
-      companyId: { in: companies.map(c => c.id) },
+      companyId: { in: companyIds },
       asOfDate: { lte: asOfDate }
     },
     include: { parameter: true },
     orderBy: { asOfDate: 'desc' }
   });
+
+  // If no values found with date filter for some companies, get most recent values regardless of date
+  const companiesWithValues = new Set(parameterValues.map(pv => pv.companyId));
+  const companiesWithoutValues = companyIds.filter(id => !companiesWithValues.has(id));
+  
+  if (companiesWithoutValues.length > 0) {
+    const fallbackValues = await prisma.companyParameterValue.findMany({
+      where: {
+        companyId: { in: companiesWithoutValues }
+      },
+      include: { parameter: true },
+      orderBy: { asOfDate: 'desc' }
+    });
+    parameterValues = [...parameterValues, ...fallbackValues];
+  }
 
   // Build parameter value maps per company (most recent value for each parameter)
   const companyParamMaps = new Map<string, Map<string, number | boolean | string>>();
@@ -786,6 +929,25 @@ export async function screenByRegion(input: RegionScreeningInput) {
   };
 }
 
+// Delete a screening result
+export async function deleteScreeningResult(id: string) {
+  // First check if the screening result exists
+  const existingResult = await prisma.screeningResult.findUnique({
+    where: { id }
+  });
+
+  if (!existingResult) {
+    throw new AppError('Screening result not found', 404);
+  }
+
+  // Delete the screening result (cascade will handle companyResults)
+  await prisma.screeningResult.delete({
+    where: { id }
+  });
+
+  return { message: 'Screening result deleted successfully' };
+}
+
 // Screen companies with custom criteria
 export async function screenWithCustomCriteria(input: CustomCriteriaScreeningInput) {
   const { criteriaSetId, userId, asOfDate = new Date() } = input;
@@ -810,15 +972,31 @@ export async function screenWithCustomCriteria(input: CustomCriteriaScreeningInp
     throw new AppError('No companies found', 404);
   }
 
-  // Fetch parameter values for all companies
-  const parameterValues = await prisma.companyParameterValue.findMany({
+  // Fetch parameter values for all companies (with date filter)
+  const companyIds = companies.map(c => c.id);
+  let parameterValues = await prisma.companyParameterValue.findMany({
     where: {
-      companyId: { in: companies.map(c => c.id) },
+      companyId: { in: companyIds },
       asOfDate: { lte: asOfDate }
     },
     include: { parameter: true },
     orderBy: { asOfDate: 'desc' }
   });
+
+  // If no values found with date filter for some companies, get most recent values regardless of date
+  const companiesWithValues = new Set(parameterValues.map(pv => pv.companyId));
+  const companiesWithoutValues = companyIds.filter(id => !companiesWithValues.has(id));
+  
+  if (companiesWithoutValues.length > 0) {
+    const fallbackValues = await prisma.companyParameterValue.findMany({
+      where: {
+        companyId: { in: companiesWithoutValues }
+      },
+      include: { parameter: true },
+      orderBy: { asOfDate: 'desc' }
+    });
+    parameterValues = [...parameterValues, ...fallbackValues];
+  }
 
   // Build parameter value maps per company (most recent value for each parameter)
   const companyParamMaps = new Map<string, Map<string, number | boolean | string>>();

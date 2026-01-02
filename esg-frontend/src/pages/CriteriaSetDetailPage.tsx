@@ -167,11 +167,27 @@ const CriteriaSetDetailPage: React.FC = () => {
    */
   const handleStartEditDetails = () => {
     if (criteriaSet) {
-      setEditName(criteriaSet.name);
-      setEditVersion(criteriaSet.version);
+      setEditName(criteriaSet.name || '');
+      setEditVersion(criteriaSet.version || '');
       // Format date for input
-      const date = new Date(criteriaSet.effectiveDate);
-      setEditEffectiveDate(date.toISOString().split('T')[0]);
+      if (criteriaSet.effectiveDate) {
+        try {
+          const date = new Date(criteriaSet.effectiveDate);
+          if (!isNaN(date.getTime())) {
+            setEditEffectiveDate(date.toISOString().split('T')[0]);
+          } else {
+            // Fallback to today's date if invalid
+            setEditEffectiveDate(new Date().toISOString().split('T')[0]);
+          }
+        } catch (err) {
+          console.error('Error parsing effective date:', err);
+          // Fallback to today's date
+          setEditEffectiveDate(new Date().toISOString().split('T')[0]);
+        }
+      } else {
+        // Fallback to today's date if missing
+        setEditEffectiveDate(new Date().toISOString().split('T')[0]);
+      }
       setIsEditingDetails(true);
     }
   };
@@ -192,21 +208,65 @@ const CriteriaSetDetailPage: React.FC = () => {
   const handleSaveDetails = async () => {
     if (!id) return;
     
+    // Validate inputs
+    if (!editName.trim()) {
+      alert('Name is required');
+      return;
+    }
+    
+    if (!editVersion.trim()) {
+      alert('Version is required');
+      return;
+    }
+    
+    if (!editEffectiveDate) {
+      alert('Effective date is required');
+      return;
+    }
+    
+    // Validate date
+    const date = new Date(editEffectiveDate);
+    if (isNaN(date.getTime())) {
+      alert('Invalid effective date');
+      return;
+    }
+    
     try {
       setSavingDetails(true);
+      setError(null); // Clear any previous errors
+      
       await apiService.updateCriteriaSet(id, {
-        name: editName,
-        version: editVersion,
-        effectiveDate: new Date(editEffectiveDate).toISOString()
+        name: editName.trim(),
+        version: editVersion.trim(),
+        effectiveDate: date.toISOString()
       });
       
       // Refresh criteria set data
-      const data = await apiService.getCriteriaSet(id);
-      setCriteriaSet(data);
-      
-      setIsEditingDetails(false);
+      try {
+        const data = await apiService.getCriteriaSet(id);
+        if (data) {
+          setCriteriaSet(data);
+          setIsEditingDetails(false);
+        } else {
+          throw new Error('Failed to refresh criteria set data');
+        }
+      } catch (refreshErr: any) {
+        console.error('Error refreshing criteria set:', refreshErr);
+        // Update the local state manually if refresh fails
+        setCriteriaSet((prev: any) => ({
+          ...prev,
+          name: editName.trim(),
+          version: editVersion.trim(),
+          effectiveDate: date.toISOString()
+        }));
+        setIsEditingDetails(false);
+        alert('Criteria set updated, but failed to refresh. Please refresh the page to see the latest data.');
+      }
     } catch (err: any) {
+      console.error('Error saving criteria set:', err);
+      setError(err.message || 'Failed to update criteria set');
       alert(err.message || 'Failed to update criteria set');
+      // Don't exit edit mode on error so user can fix and retry
     } finally {
       setSavingDetails(false);
     }
@@ -216,18 +276,30 @@ const CriteriaSetDetailPage: React.FC = () => {
    * Formats the expression for display
    */
   const formatExpression = (expression: any): string => {
-    if (expression.type === 'comparison') {
-      return formatRuleExpression(expression);
-    } else if (expression.type === 'AND' || expression.type === 'OR' || expression.type === 'NOT') {
-      const conditions = expression.conditions.map((c: any) => {
-        if (c.type === 'comparison') {
-          return formatRuleExpression(c);
-        }
-        return JSON.stringify(c);
-      }).join(` ${expression.type} `);
-      return `(${conditions})`;
+    if (!expression) {
+      return 'No expression';
     }
-    return JSON.stringify(expression);
+    
+    try {
+      if (expression.type === 'comparison') {
+        return formatRuleExpression(expression);
+      } else if (expression.type === 'AND' || expression.type === 'OR' || expression.type === 'NOT') {
+        if (!expression.conditions || !Array.isArray(expression.conditions)) {
+          return JSON.stringify(expression);
+        }
+        const conditions = expression.conditions.map((c: any) => {
+          if (c && c.type === 'comparison') {
+            return formatRuleExpression(c);
+          }
+          return JSON.stringify(c);
+        }).join(` ${expression.type} `);
+        return `(${conditions})`;
+      }
+      return JSON.stringify(expression);
+    } catch (err) {
+      console.error('Error formatting expression:', err);
+      return 'Error formatting expression';
+    }
   };
 
   if (loading) {
@@ -327,7 +399,14 @@ const CriteriaSetDetailPage: React.FC = () => {
               <p className="text-gray-600">
                 {criteriaSet.isGlobal ? 'Global' : `Client: ${criteriaSet.client?.name || 'N/A'}`} • 
                 {criteriaSet.rules?.length || 0} rules • 
-                Effective: {new Date(criteriaSet.effectiveDate).toLocaleDateString()} • 
+                Effective: {criteriaSet.effectiveDate ? (() => {
+                  try {
+                    const date = new Date(criteriaSet.effectiveDate);
+                    return isNaN(date.getTime()) ? 'Invalid date' : date.toLocaleDateString();
+                  } catch {
+                    return 'Invalid date';
+                  }
+                })() : 'N/A'} • 
                 Version {criteriaSet.version}
               </p>
             </div>

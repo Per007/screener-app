@@ -28,6 +28,27 @@ interface AddRuleModalProps {
 }
 
 /**
+ * Safely formats an expression to a string for display in the form
+ */
+const safeFormatExpression = (expression: any): string => {
+  if (!expression) {
+    return '';
+  }
+  
+  try {
+    // Only format simple comparison expressions
+    if (expression.type === 'comparison' && expression.parameter && expression.operator) {
+      return formatRuleExpression(expression);
+    }
+    // For complex expressions (AND, OR, NOT), return JSON
+    return JSON.stringify(expression);
+  } catch (err) {
+    console.error('Error formatting expression:', err);
+    return JSON.stringify(expression);
+  }
+};
+
+/**
  * Modal component for adding or editing a rule in a criteria set
  * - Add mode: when editingRule is not provided
  * - Edit mode: when editingRule is provided
@@ -45,29 +66,38 @@ const AddRuleModal: React.FC<AddRuleModalProps> = ({
   const [failureMessage, setFailureMessage] = useState('');
   const [severity, setSeverity] = useState<'exclude' | 'warn' | 'info'>('exclude');
   const [error, setError] = useState<string | null>(null);
+  const [initialized, setInitialized] = useState(false);
 
   // Determine if we're in edit mode
   const isEditMode = !!editingRule;
 
   /**
-   * Populate form fields when editing an existing rule
+   * Initialize/reset form when modal opens or editingRule changes
    */
   useEffect(() => {
-    if (editingRule) {
-      setName(editingRule.name);
-      setDescription(editingRule.description || '');
-      // Convert expression object back to string format
-      if (editingRule.expression) {
-        const formatted = formatRuleExpression(editingRule.expression);
-        setExpressionString(formatted);
+    if (isOpen) {
+      if (editingRule) {
+        // Edit mode - populate with rule data
+        setName(editingRule.name || '');
+        setDescription(editingRule.description || '');
+        setExpressionString(safeFormatExpression(editingRule.expression));
+        setFailureMessage(editingRule.failureMessage || '');
+        setSeverity(editingRule.severity || 'exclude');
+      } else {
+        // Add mode - reset form
+        setName('');
+        setDescription('');
+        setExpressionString('');
+        setFailureMessage('');
+        setSeverity('exclude');
       }
-      setFailureMessage(editingRule.failureMessage || '');
-      setSeverity(editingRule.severity);
+      setError(null);
+      setInitialized(true);
     } else {
-      // Reset form for add mode
-      resetForm();
+      // When modal closes, reset initialized flag
+      setInitialized(false);
     }
-  }, [editingRule, isOpen]);
+  }, [isOpen, editingRule]);
 
   /**
    * Resets all form fields
@@ -134,6 +164,7 @@ const AddRuleModal: React.FC<AddRuleModalProps> = ({
     onClose();
   };
 
+  // Don't render until initialized or if not open
   if (!isOpen) return null;
 
   return (
@@ -141,12 +172,12 @@ const AddRuleModal: React.FC<AddRuleModalProps> = ({
       <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
         {/* Background overlay */}
         <div
-          className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"
+          className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity z-40"
           onClick={handleClose}
         ></div>
 
-        {/* Modal panel */}
-        <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+        {/* Modal panel - needs higher z-index than overlay */}
+        <div className="relative z-50 inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
           <form onSubmit={handleSubmit}>
             <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
               <div className="flex justify-between items-center mb-4">
@@ -181,7 +212,7 @@ const AddRuleModal: React.FC<AddRuleModalProps> = ({
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     required
-                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-navy-500 focus:border-navy-500 sm:text-sm"
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-navy-500 focus:border-navy-500 sm:text-sm text-gray-900"
                     placeholder="e.g., Carbon Emissions Limit"
                   />
                 </div>
@@ -195,7 +226,7 @@ const AddRuleModal: React.FC<AddRuleModalProps> = ({
                     value={expressionString}
                     onChange={(e) => setExpressionString(e.target.value)}
                     required
-                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-navy-500 focus:border-navy-500 sm:text-sm font-mono"
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-navy-500 focus:border-navy-500 sm:text-sm font-mono text-gray-900"
                     placeholder="e.g., carbon_emissions < 500"
                   />
                   <p className="mt-1 text-sm text-gray-500">

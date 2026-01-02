@@ -83,6 +83,9 @@ const PortfolioDetailPage: React.FC = () => {
   const [selectedCompanyId, setSelectedCompanyId] = useState('');
   const [holdingWeight, setHoldingWeight] = useState('');
   const [addingHolding, setAddingHolding] = useState(false);
+  const [deletingScreeningId, setDeletingScreeningId] = useState<string | null>(null);
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
+  const [screeningToDelete, setScreeningToDelete] = useState<string | null>(null);
 
   // Fetch companies for add holding modal
   useEffect(() => {
@@ -262,6 +265,32 @@ const PortfolioDetailPage: React.FC = () => {
       setError(err instanceof Error ? err.message : 'Failed to add holding');
     } finally {
       setAddingHolding(false);
+    }
+  };
+
+  // Handle delete screening result
+  const handleDeleteScreening = async () => {
+    if (!screeningToDelete) return;
+
+    try {
+      setDeletingScreeningId(screeningToDelete);
+      await apiService.deleteScreeningResult(screeningToDelete);
+
+      // Remove the deleted screening from history
+      const updatedHistory = screeningHistory.filter(s => s.id !== screeningToDelete);
+      setScreeningHistory(updatedHistory);
+
+      // If we deleted the latest screening, update it
+      if (latestScreening?.id === screeningToDelete) {
+        setLatestScreening(updatedHistory.length > 0 ? updatedHistory[0] : null);
+      }
+
+      setShowDeleteConfirmModal(false);
+      setScreeningToDelete(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete screening result');
+    } finally {
+      setDeletingScreeningId(null);
     }
   };
 
@@ -838,9 +867,19 @@ const PortfolioDetailPage: React.FC = () => {
                                 setLatestScreening(result);
                                 setActiveTab('failed');
                               }}
-                              className="text-navy-600 hover:text-navy-900"
+                              className="text-navy-600 hover:text-navy-900 mr-3"
                             >
                               View
+                            </button>
+                            <button
+                              onClick={() => {
+                                setScreeningToDelete(result.id);
+                                setShowDeleteConfirmModal(true);
+                              }}
+                              disabled={deletingScreeningId === result.id}
+                              className="text-red-600 hover:text-red-900 disabled:opacity-50"
+                            >
+                              {deletingScreeningId === result.id ? 'Deleting...' : 'Delete'}
                             </button>
                           </td>
                         </tr>
@@ -984,6 +1023,51 @@ const PortfolioDetailPage: React.FC = () => {
                   {screeningInProgress ? 'Screening...' : 'Screen Portfolio'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirmModal && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium text-gray-900">Delete Screening</h3>
+              <button
+                onClick={() => {
+                  setShowDeleteConfirmModal(false);
+                  setScreeningToDelete(null);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <p className="text-gray-600">
+                Are you sure you want to delete this screening result? This action cannot be undone.
+              </p>
+            </div>
+
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setShowDeleteConfirmModal(false);
+                  setScreeningToDelete(null);
+                }}
+                className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteScreening}
+                disabled={deletingScreeningId !== null}
+                className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {deletingScreeningId !== null ? 'Deleting...' : 'Delete'}
+              </button>
             </div>
           </div>
         </div>

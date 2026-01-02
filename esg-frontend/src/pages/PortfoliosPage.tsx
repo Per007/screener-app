@@ -1,9 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { apiService } from '../api/apiService';
 import { useAuth } from '../context/AuthContext';
 import { PlusIcon, CogIcon } from '@heroicons/react/24/solid';
-import { MagnifyingGlassIcon as SearchIcon } from '@heroicons/react/24/outline';
+import { MagnifyingGlassIcon as SearchIcon, BuildingOffice2Icon, FolderIcon } from '@heroicons/react/24/outline';
+
+// Tab definitions for switching between Portfolios and Companies views
+const tabs = [
+  { name: 'Portfolios', href: '/portfolios', icon: FolderIcon },
+  { name: 'Companies', href: '/companies', icon: BuildingOffice2Icon },
+];
 
 const PortfoliosPage: React.FC = () => {
   const [portfolios, setPortfolios] = useState<any[]>([]);
@@ -11,6 +17,7 @@ const PortfoliosPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const { isAdmin } = useAuth();
+  const location = useLocation();
 
   useEffect(() => {
     const fetchPortfolios = async () => {
@@ -53,6 +60,37 @@ const PortfoliosPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Tab Navigation - Switch between Portfolios and Companies */}
+      <div className="border-b border-gray-200">
+        <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+          {tabs.map((tab) => {
+            const isActive = location.pathname === tab.href;
+            return (
+              <Link
+                key={tab.name}
+                to={tab.href}
+                className={`
+                  group inline-flex items-center py-4 px-1 border-b-2 font-medium text-sm
+                  ${isActive
+                    ? 'border-navy-500 text-navy-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }
+                `}
+              >
+                <tab.icon
+                  className={`
+                    -ml-0.5 mr-2 h-5 w-5
+                    ${isActive ? 'text-navy-500' : 'text-gray-400 group-hover:text-gray-500'}
+                  `}
+                  aria-hidden="true"
+                />
+                {tab.name}
+              </Link>
+            );
+          })}
+        </nav>
+      </div>
+
       <div className="flex flex-col sm:flex-row justify-between items-center">
         <h1 className="text-2xl font-semibold text-gray-900 mb-4 sm:mb-0">Portfolios</h1>
         <div className="flex items-center space-x-4">

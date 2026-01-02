@@ -8,6 +8,10 @@ class ApiService {
   constructor() {
     this.baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
     
+    // Backend routes are mounted directly without /api prefix
+    // So we use the base URL as-is
+    console.log('[API Service] Initializing with baseURL:', this.baseURL);
+    
     this.instance = axios.create({
       baseURL: this.baseURL,
       timeout: parseInt(import.meta.env.VITE_API_TIMEOUT) || 30000,
@@ -23,21 +27,43 @@ class ApiService {
         if (token) {
           config.headers.Authorization = `Bearer ${token}`;
         }
+        console.log(`[API Service] ${config.method?.toUpperCase()} ${config.url}`, {
+          baseURL: config.baseURL,
+          hasAuth: !!token
+        });
         return config;
       },
       (error) => {
+        console.error('[API Service] Request error:', error);
         return Promise.reject(error);
       }
     );
     
     // Response interceptor
     this.instance.interceptors.response.use(
-      (response) => response,
+      (response) => {
+        console.log(`[API Service] Response ${response.status} from ${response.config.url}`);
+        return response;
+      },
       (error: AxiosError) => {
+        console.error('[API Service] Response error:', {
+          url: error.config?.url,
+          method: error.config?.method,
+          status: error.response?.status,
+          statusText: error.response?.statusText,
+          message: error.message,
+          code: error.code,
+          request: error.request ? 'Request made but no response' : 'No request made'
+        });
+        
         if (error.response?.status === 401) {
           // Token expired or invalid
           clearAuthToken();
           window.location.href = '/login';
+        } else if (!error.response && error.request) {
+          // Network error - backend not reachable
+          console.error('[API Service] ⚠️ Backend connection failed! Is the server running?');
+          console.error('[API Service] Attempted URL:', error.config?.baseURL + error.config?.url);
         }
         return Promise.reject(error);
       }
@@ -53,16 +79,36 @@ class ApiService {
         const axiosError = error as AxiosError;
         if (axiosError.response) {
           // Server responded with a status code outside 2xx
-          throw new Error(axiosError.response.data as string || axiosError.message);
+          const errorMessage = typeof axiosError.response.data === 'string' 
+            ? axiosError.response.data 
+            : (axiosError.response.data as any)?.message || axiosError.message;
+          throw new Error(errorMessage);
         } else if (axiosError.request) {
-          // Request was made but no response received
-          throw new Error('No response received from server');
+          // Request was made but no response received - backend connection issue
+          throw new Error(
+            `Cannot connect to backend server at ${this.baseURL}. ` +
+            `Please ensure the backend is running on port 3000. ` +
+            `Error: ${axiosError.message}`
+          );
         } else {
           // Something happened in setting up the request
-          throw new Error(axiosError.message);
+          throw new Error(`Request setup error: ${axiosError.message}`);
         }
       }
       throw new Error('Unknown error occurred');
+    }
+  }
+  
+  // Health check method to test backend connection
+  public async checkBackendConnection(): Promise<boolean> {
+    try {
+      const healthURL = `${this.baseURL}/health`;
+      const response = await axios.get(healthURL, { timeout: 5000 });
+      console.log('[API Service] Backend health check:', response.data);
+      return response.status === 200;
+    } catch (error) {
+      console.error('[API Service] Backend health check failed:', error);
+      return false;
     }
   }
   
@@ -102,6 +148,10 @@ class ApiService {
 
   public async getScreeningResult(id: string): Promise<any> {
     return this.request({ method: 'GET', url: `/screening-results/${id}` });
+  }
+
+  public async deleteScreeningResult(id: string): Promise<any> {
+    return this.request({ method: 'DELETE', url: `/screening-results/${id}` });
   }
   
   // Company endpoints
