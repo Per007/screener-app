@@ -28,8 +28,6 @@ const RESERVED_COLUMNS = [
   'companyname',      // Required: Company name
   'company_name',     // Alternative: Company name
   'ticker',           // Optional: Stock ticker symbol
-  'weight',           // Optional: Portfolio weight (0-100)
-  'shares',           // Optional: Number of shares
   'sector',           // Optional: Company sector
 ];
 
@@ -132,23 +130,11 @@ function validateRow(row: Record<string, string>, rowNumber: number): RowValidat
     }
   }
   
-  // Validate shares if provided
-  const shares = normalizedRow['shares'];
-  if (shares && shares.trim() !== '') {
-    const sharesNum = Number(shares);
-    if (isNaN(sharesNum)) {
-      errors.push(`Invalid shares value: "${shares}" - must be a number`);
-    } else if (sharesNum < 0) {
-      errors.push(`Shares cannot be negative: ${sharesNum}`);
-    }
-  }
-  
   // Build the import row data
   const importRow: ImportRow = {
     companyName: companyName?.trim() || '',
     ticker: normalizedRow['ticker']?.trim() || undefined,
     weight: weight ? Number(weight) : undefined,
-    shares: shares ? Number(shares) : undefined,
     sector: normalizedRow['sector']?.trim() || undefined,
   };
   
@@ -285,7 +271,7 @@ export async function importPortfolioFromCSV(
       if (row.data) {
         for (const key of Object.keys(row.data)) {
           if (!isReservedColumn(normalizeColumnName(key)) && 
-              !['companyName', 'ticker', 'weight', 'shares', 'sector'].includes(key)) {
+              !['companyName', 'ticker', 'weight', 'sector'].includes(key)) {
             parameterNames.add(key);
           }
         }
@@ -446,15 +432,17 @@ export async function importPortfolioFromCSV(
       }
       
       // Default weight to 0 if not provided
-      const weight = row.data.weight ?? 0;
-      const shares = row.data.shares;
+      // Convert weight to number, handling all possible types from ImportRow
+      const weightValue = row.data.weight;
+      const weight = typeof weightValue === 'number' 
+        ? weightValue 
+        : (weightValue ? Number(weightValue) : 0);
       
       await prisma.portfolioHolding.create({
         data: {
           portfolioId: portfolio.id,
           companyId,
-          weight,
-          shares
+          weight
         }
       });
       result.summary.holdingsCreated++;
@@ -536,7 +524,6 @@ export function generateCSVTemplate(includeExampleData: boolean = true): string 
     'Ticker',
     'Sector',
     'Weight',
-    'Shares',
     'ESG Score',
     'Carbon Intensity',
     'Renewable Energy %',
@@ -547,9 +534,9 @@ export function generateCSVTemplate(includeExampleData: boolean = true): string 
   
   if (includeExampleData) {
     const exampleRows = [
-      ['Apple Inc.', 'AAPL', 'Technology', '15.5', '1000', '78.5', '12.3', '85', 'false'],
-      ['Microsoft Corp.', 'MSFT', 'Technology', '12.3', '800', '82.1', '8.7', '100', 'false'],
-      ['ExxonMobil', 'XOM', 'Energy', '8.2', '500', '45.2', '156.8', '5', 'true'],
+      ['Apple Inc.', 'AAPL', 'Technology', '1000', '78.5', '12.3', '85', 'false'],
+      ['Microsoft Corp.', 'MSFT', 'Technology', '800', '82.1', '8.7', '100', 'false'],
+      ['ExxonMobil', 'XOM', 'Energy', '500', '45.2', '156.8', '5', 'true'],
     ];
     
     for (const row of exampleRows) {

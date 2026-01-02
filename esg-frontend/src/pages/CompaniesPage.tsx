@@ -1,6 +1,56 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { apiService } from '../api/apiService';
+import { MagnifyingGlassIcon as SearchIcon } from '@heroicons/react/24/outline';
 
 const CompaniesPage: React.FC = () => {
+  const [companies, setCompanies] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sectorFilter, setSectorFilter] = useState('');
+
+  useEffect(() => {
+    const fetchCompanies = async () => {
+      try {
+        const data = await apiService.getCompanies();
+        setCompanies(data);
+      } catch (err) {
+        setError('Failed to fetch companies');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchCompanies();
+  }, []);
+
+  // Get unique sectors
+  const sectors = Array.from(new Set(companies.map(c => c.sector).filter(Boolean))).sort();
+
+  const filteredCompanies = companies.filter(company => {
+    const matchesSearch = company.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (company.ticker && company.ticker.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesSector = !sectorFilter || company.sector === sectorFilter;
+    return matchesSearch && matchesSector;
+  });
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-navy-600"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-red-50 border-l-4 border-red-400 p-4">
+        <p className="text-red-700">{error}</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-center">
@@ -8,33 +58,91 @@ const CompaniesPage: React.FC = () => {
         <div className="flex items-center space-x-4">
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
-              </svg>
+              <SearchIcon className="h-5 w-5 text-gray-400" aria-hidden="true" />
             </div>
             <input
               type="text"
               placeholder="Search companies..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
               className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-navy-500 focus:border-navy-500 sm:text-sm"
             />
           </div>
-          <select className="mt-1 block pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-navy-500 focus:border-navy-500 sm:text-sm rounded-md">
-            <option>Sector: All</option>
+          <select 
+            value={sectorFilter}
+            onChange={(e) => setSectorFilter(e.target.value)}
+            className="mt-1 block pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-navy-500 focus:border-navy-500 sm:text-sm rounded-md"
+          >
+            <option value="">Sector: All</option>
+            {sectors.map(sector => (
+              <option key={sector} value={sector}>{sector}</option>
+            ))}
           </select>
-          <select className="mt-1 block pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-navy-500 focus:border-navy-500 sm:text-sm rounded-md">
-            <option>Region: All</option>
-          </select>
-          <button className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
-            Clear Filters
-          </button>
+          {(searchTerm || sectorFilter) && (
+            <button 
+              onClick={() => { setSearchTerm(''); setSectorFilter(''); }}
+              className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+            >
+              Clear Filters
+            </button>
+          )}
         </div>
       </div>
 
-      <div className="bg-white shadow rounded-lg">
-        <div className="px-4 py-5 sm:p-6">
-          <h2 className="text-lg font-medium text-gray-900">Companies Database</h2>
-          <p className="text-gray-600 mt-1">Showing 1,247 companies</p>
-        </div>
+      <div className="bg-white shadow overflow-hidden border-b border-gray-200 sm:rounded-lg">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Company Name
+              </th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Ticker
+              </th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Sector
+              </th>
+              <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Actions
+              </th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {filteredCompanies.length > 0 ? (
+              filteredCompanies.map((company) => (
+                <tr key={company.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm font-medium text-gray-900">{company.name}</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-gray-900">{company.ticker || 'N/A'}</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm text-gray-900">{company.sector || 'N/A'}</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                    <Link
+                      to={`/companies/${company.id}`}
+                      className="text-navy-600 hover:text-navy-900"
+                    >
+                      View
+                    </Link>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={4} className="px-6 py-4 text-center text-sm text-gray-500">
+                  No companies found
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      
+      <div className="text-sm text-gray-600">
+        Showing {filteredCompanies.length} of {companies.length} companies
       </div>
     </div>
   );

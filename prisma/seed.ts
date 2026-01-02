@@ -190,11 +190,11 @@ async function main() {
       name: 'Main Portfolio',
       holdings: {
         create: [
-          { companyId: companies[0].id, weight: 25 },
-          { companyId: companies[1].id, weight: 20 },
-          { companyId: companies[2].id, weight: 25 },
-          { companyId: companies[3].id, weight: 15 },
-          { companyId: companies[4].id, weight: 15 }
+          { companyId: companies[0].id },
+          { companyId: companies[1].id },
+          { companyId: companies[2].id },
+          { companyId: companies[3].id },
+          { companyId: companies[4].id }
         ]
       }
     }

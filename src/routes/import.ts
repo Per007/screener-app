@@ -68,7 +68,7 @@ const importOptionsSchema = z.object({
  * 
  * The CSV file should have the following structure:
  * - Required column: "Company Name" or "CompanyName"
- * - Optional columns: "Ticker", "Sector", "Weight", "Shares"
+ * - Optional columns: "Ticker", "Sector", "Weight"
  * - Additional columns are treated as parameter values
  * 
  * Form data:

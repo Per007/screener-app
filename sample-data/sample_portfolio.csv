@@ -1,0 +1,16 @@
+Company Name,Ticker,Sector,Weight,Carbon Emissions,Board Diversity,Renewable Energy Pct,Has Environmental Policy,Controversy Score
+Apple Inc,AAPL,Technology,8.5,45,42,100,true,1
+Microsoft Corp,MSFT,Technology,7.2,38,45,100,true,0
+Alphabet Inc,GOOGL,Technology,6.8,52,38,90,true,2
+Amazon.com Inc,AMZN,Technology,5.5,180,35,85,true,3
+Tesla Inc,TSLA,Technology,4.2,25,30,100,true,2
+ExxonMobil Corp,XOM,Energy,3.8,5200,18,5,false,8
+Chevron Corp,CVX,Energy,3.5,4800,22,8,true,7
+Johnson & Johnson,JNJ,Healthcare,4.5,85,40,45,true,4
+Pfizer Inc,PFE,Healthcare,3.2,72,38,50,true,2
+UnitedHealth Group,UNH,Healthcare,4.8,95,35,30,true,1
+JPMorgan Chase,JPM,Finance,5.2,120,42,25,true,3
+Bank of America,BAC,Finance,4.1,135,38,20,true,4
+Visa Inc,V,Finance,3.8,28,45,60,true,1
+Procter & Gamble,PG,Consumer,3.5,110,48,55,true,2
+Coca-Cola Co,KO,Consumer,2.8,145,40,40,true,3

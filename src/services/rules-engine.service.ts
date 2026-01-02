@@ -131,3 +131,47 @@ export function getFailureReason(
 
   return `${condition.parameter} (${actualValue}) should be ${opDescriptions[condition.operator]} ${JSON.stringify(condition.value)}`;
 }
+
+/**
+ * Extract the actual value from a rule expression for a given company's parameter values.
+ * For comparison conditions, returns the parameter value.
+ * For logical conditions, returns undefined (complex rules don't have a single value).
+ */
+export function getActualValue(
+  expression: RuleExpression,
+  paramValues: ParameterValues
+): { actualValue?: string | number | boolean; threshold?: string } {
+  if (expression.type === 'comparison') {
+    const actualValue = paramValues.get(expression.parameter);
+    const threshold = formatThreshold(expression.operator, expression.value);
+    return {
+      actualValue: actualValue !== undefined ? actualValue : undefined,
+      threshold
+    };
+  }
+  // For logical conditions, we don't return a single value
+  return {};
+}
+
+/**
+ * Format the threshold/expected value for display
+ */
+function formatThreshold(
+  operator: ComparisonOperator,
+  value: number | string | boolean | (number | string)[]
+): string {
+  const opSymbols: Record<ComparisonOperator, string> = {
+    '==': '=',
+    '!=': '≠',
+    '<': '<',
+    '<=': '≤',
+    '>': '>',
+    '>=': '≥',
+    'in': 'in',
+    'not_in': 'not in',
+    'contains': 'contains'
+  };
+  
+  const formattedValue = Array.isArray(value) ? `[${value.join(', ')}]` : String(value);
+  return `${opSymbols[operator]} ${formattedValue}`;
+}

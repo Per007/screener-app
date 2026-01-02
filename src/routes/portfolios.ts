@@ -8,15 +8,15 @@ import { AuthRequest } from '../models/types';
 const router = Router();
 
 const createPortfolioSchema = z.object({
-  name: z.string().min(1)
+  name: z.string().min(1),
+  clientId: z.string().uuid().optional() // Optional for admin users
 });
 
 const updatePortfolioSchema = createPortfolioSchema.partial();
 
 const holdingSchema = z.object({
   companyId: z.string().uuid(),
-  weight: z.number().min(0).max(100),
-  shares: z.number().optional()
+  weight: z.number().min(0).max(100)
 });
 
 const holdingsSchema = z.object({
@@ -76,7 +76,6 @@ router.get('/portfolios', authenticate, async (req: AuthRequest, res, next) => {
       createdAt: portfolio.createdAt,
       // These fields would come from screening results if available
       lastScreenedAt: null,
-      status: 'pending',
       summary: {
         passRate: 0,
         failed: 0
@@ -84,6 +83,51 @@ router.get('/portfolios', authenticate, async (req: AuthRequest, res, next) => {
     }));
 
     res.json(formattedPortfolios);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Create portfolio (admin can specify clientId, regular users use their clientId)
+router.post('/portfolios', authenticate, async (req: AuthRequest, res, next) => {
+  try {
+    const user = req.user;
+    if (!user) {
+      throw new AppError('Not authenticated', 401);
+    }
+
+    const data = createPortfolioSchema.parse(req.body);
+    
+    // Determine clientId: admin can specify, regular users use their own
+    let clientId: string;
+    if (user.role === 'admin') {
+      // Admin must provide clientId in request body
+      if (!data.clientId) {
+        throw new AppError('clientId is required for admin users', 400);
+      }
+      clientId = data.clientId;
+    } else {
+      // Regular users use their own clientId
+      if (!user.clientId) {
+        throw new AppError('User must be associated with a client', 403);
+      }
+      clientId = user.clientId;
+    }
+
+    // Verify client exists
+    const client = await prisma.client.findUnique({ where: { id: clientId } });
+    if (!client) {
+      throw new AppError('Client not found', 404);
+    }
+
+    const portfolio = await prisma.portfolio.create({
+      data: {
+        name: data.name,
+        clientId: clientId
+      }
+    });
+    
+    res.status(201).json(portfolio);
   } catch (err) {
     next(err);
   }
@@ -183,13 +227,60 @@ router.post('/portfolios/:id/holdings', authenticate, async (req, res, next) => 
           data: {
             portfolioId,
             companyId: h.companyId,
-            weight: h.weight,
-            shares: h.shares
+            weight: h.weight
           }
         })
       )
     ]);
 
+    const updatedPortfolio = await prisma.portfolio.findUnique({
+      where: { id: portfolioId },
+      include: { holdings: { include: { company: true } } }
+    });
+
+    res.json(updatedPortfolio);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Add a single holding to a portfolio (incremental add)
+router.post('/portfolios/:id/holdings/add', authenticate, async (req, res, next) => {
+  try {
+    const holdingData = holdingSchema.parse(req.body);
+    const portfolioId = req.params.id;
+
+    // Verify portfolio exists
+    const portfolio = await prisma.portfolio.findUnique({ where: { id: portfolioId } });
+    if (!portfolio) {
+      throw new AppError('Portfolio not found', 404);
+    }
+
+    // Verify company exists
+    const company = await prisma.company.findUnique({ where: { id: holdingData.companyId } });
+    if (!company) {
+      throw new AppError('Company not found', 404);
+    }
+
+    // Check if holding already exists (upsert - update if exists, create if not)
+    const holding = await prisma.portfolioHolding.upsert({
+      where: {
+        portfolioId_companyId: {
+          portfolioId,
+          companyId: holdingData.companyId
+        }
+      },
+      update: {
+        weight: holdingData.weight
+      },
+      create: {
+        portfolioId,
+        companyId: holdingData.companyId,
+        weight: holdingData.weight
+      }
+    });
+
+    // Return updated portfolio with all holdings
     const updatedPortfolio = await prisma.portfolio.findUnique({
       where: { id: portfolioId },
       include: { holdings: { include: { company: true } } }

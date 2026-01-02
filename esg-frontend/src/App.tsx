@@ -5,11 +5,14 @@ import MainLayout from './layouts/MainLayout';
 import LoginPage from './pages/LoginPage';
 import PortfoliosPage from './pages/PortfoliosPage';
 import PortfolioDetailPage from './pages/PortfolioDetailPage';
+import NewPortfolioPage from './pages/NewPortfolioPage';
 import CompaniesPage from './pages/CompaniesPage';
 import CompanyDetailPage from './pages/CompanyDetailPage';
 import CriteriaSetsPage from './pages/CriteriaSetsPage';
 import CriteriaSetDetailPage from './pages/CriteriaSetDetailPage';
+import AddCriteriaSetPage from './pages/AddCriteriaSetPage';
 import ScreeningToolsPage from './pages/ScreeningToolsPage';
+import RunScreeningPage from './pages/RunScreeningPage';
 import ReportsPage from './pages/ReportsPage';
 import IndividualCompanyScreening from './pages/screening/IndividualCompanyScreening';
 import MultipleCompaniesScreening from './pages/screening/MultipleCompaniesScreening';
@@ -39,12 +42,15 @@ const App: React.FC = () => {
         <Route element={<MainLayout />}>
           <Route path="/" element={<Navigate to="/portfolios" replace />} />
           <Route path="/portfolios" element={<PortfoliosPage />} />
+          <Route path="/portfolios/new" element={<NewPortfolioPage />} />
           <Route path="/portfolios/:id" element={<PortfolioDetailPage />} />
           <Route path="/companies" element={<CompaniesPage />} />
           <Route path="/companies/:id" element={<CompanyDetailPage />} />
           <Route path="/criteria-sets" element={<CriteriaSetsPage />} />
+          <Route path="/criteria-sets/new" element={<AddCriteriaSetPage />} />
           <Route path="/criteria-sets/:id" element={<CriteriaSetDetailPage />} />
           <Route path="/screening-tools" element={<ScreeningToolsPage />} />
+          <Route path="/run-screening" element={<RunScreeningPage />} />
           <Route path="/screening-tools/individual-company" element={<IndividualCompanyScreening />} />
           <Route path="/screening-tools/multiple-companies" element={<MultipleCompaniesScreening />} />
           <Route path="/screening-tools/sector" element={<SectorScreening />} />

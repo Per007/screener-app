@@ -75,8 +75,33 @@ class ApiService {
     return this.request({ method: 'GET', url: `/portfolios/${id}` });
   }
   
+  public async createPortfolio(data: { name: string; clientId?: string }): Promise<any> {
+    return this.request({ method: 'POST', url: '/portfolios', data });
+  }
+
+  public async addHoldingToPortfolio(portfolioId: string, data: { companyId: string; weight: number }): Promise<any> {
+    return this.request({ method: 'POST', url: `/portfolios/${portfolioId}/holdings/add`, data });
+  }
+  
+  // Client endpoints
+  public async getClients(): Promise<any> {
+    return this.request({ method: 'GET', url: '/clients' });
+  }
+  
   public async screenPortfolio(id: string, data: any): Promise<any> {
     return this.request({ method: 'POST', url: `/portfolios/${id}/screen`, data });
+  }
+
+  public async screenPortfolioDirect(data: { portfolioId: string; criteriaSetId: string; asOfDate?: string }): Promise<any> {
+    return this.request({ method: 'POST', url: '/screen', data });
+  }
+
+  public async getScreeningResults(filters?: { portfolioId?: string; criteriaSetId?: string }): Promise<any> {
+    return this.request({ method: 'GET', url: '/screening-results', params: filters });
+  }
+
+  public async getScreeningResult(id: string): Promise<any> {
+    return this.request({ method: 'GET', url: `/screening-results/${id}` });
   }
   
   // Company endpoints
@@ -88,6 +113,15 @@ class ApiService {
     return this.request({ method: 'GET', url: `/companies/${id}` });
   }
   
+  // Parameter endpoints
+  public async getParameters(): Promise<any> {
+    return this.request({ method: 'GET', url: '/parameters' });
+  }
+
+  public async getParameter(id: string): Promise<any> {
+    return this.request({ method: 'GET', url: `/parameters/${id}` });
+  }
+  
   // Criteria sets endpoints
   public async getCriteriaSets(): Promise<any> {
     return this.request({ method: 'GET', url: '/criteria-sets' });
@@ -95,6 +129,58 @@ class ApiService {
   
   public async getCriteriaSet(id: string): Promise<any> {
     return this.request({ method: 'GET', url: `/criteria-sets/${id}` });
+  }
+
+  public async createCriteriaSet(data: {
+    name: string;
+    version: string;
+    effectiveDate: string;
+    clientId?: string;
+    rules?: Array<{
+      name: string;
+      description?: string;
+      expression: any;
+      failureMessage?: string;
+      severity?: 'exclude' | 'warn' | 'info';
+    }>;
+  }): Promise<any> {
+    return this.request({ method: 'POST', url: '/criteria-sets', data });
+  }
+
+  public async addRuleToCriteriaSet(criteriaSetId: string, data: {
+    name: string;
+    description?: string;
+    expression: any;
+    failureMessage?: string;
+    severity?: 'exclude' | 'warn' | 'info';
+  }): Promise<any> {
+    return this.request({ method: 'POST', url: `/criteria-sets/${criteriaSetId}/rules`, data });
+  }
+
+  public async deleteRule(criteriaSetId: string, ruleId: string): Promise<any> {
+    return this.request({ method: 'DELETE', url: `/criteria-sets/${criteriaSetId}/rules/${ruleId}` });
+  }
+
+  public async updateCriteriaSet(criteriaSetId: string, data: {
+    name?: string;
+    version?: string;
+    effectiveDate?: string;
+  }): Promise<any> {
+    return this.request({ method: 'PUT', url: `/criteria-sets/${criteriaSetId}`, data });
+  }
+
+  public async updateRule(criteriaSetId: string, ruleId: string, data: {
+    name?: string;
+    description?: string;
+    expression?: any;
+    failureMessage?: string;
+    severity?: 'exclude' | 'warn' | 'info';
+  }): Promise<any> {
+    return this.request({ method: 'PUT', url: `/criteria-sets/${criteriaSetId}/rules/${ruleId}`, data });
+  }
+
+  public async deleteCriteriaSet(criteriaSetId: string): Promise<any> {
+    return this.request({ method: 'DELETE', url: `/criteria-sets/${criteriaSetId}` });
   }
   
   // Screening tools endpoints
@@ -116,6 +202,58 @@ class ApiService {
   
   public async screenCustom(data: any): Promise<any> {
     return this.request({ method: 'POST', url: '/screen/custom', data });
+  }
+  
+  // Import endpoints
+  public async validateCSV(formData: FormData): Promise<any> {
+    return this.request({
+      method: 'POST',
+      url: '/import/validate',
+      data: formData,
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  }
+
+  public async importPortfolio(clientId: string, formData: FormData): Promise<any> {
+    return this.request({
+      method: 'POST',
+      url: `/import/portfolios/${clientId}`,
+      data: formData,
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+  }
+
+  public async downloadTemplate(): Promise<void> {
+    // Create a hidden link to trigger download
+    const token = getAuthToken();
+    const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+    
+    const link = document.createElement('a');
+    link.href = `${baseURL}/import/template`;
+    link.setAttribute('download', 'portfolio-template.csv');
+    
+    // For authenticated download, we need to fetch and create blob
+    const response = await fetch(`${baseURL}/import/template`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to download template');
+    }
+    
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    link.href = url;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   }
   
   // Auth endpoints

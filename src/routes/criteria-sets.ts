@@ -37,6 +37,22 @@ const copyCriteriaSetSchema = z.object({
   newVersion: z.string().min(1).optional()
 });
 
+// Schema for updating a criteria set
+const updateCriteriaSetSchema = z.object({
+  name: z.string().min(1).optional(),
+  version: z.string().min(1).optional(),
+  effectiveDate: z.string().datetime().optional()
+});
+
+// Schema for updating a rule
+const updateRuleSchema = z.object({
+  name: z.string().min(1).optional(),
+  description: z.string().optional(),
+  expression: z.any().optional(),
+  failureMessage: z.string().optional(),
+  severity: z.enum(['exclude', 'warn', 'info']).optional()
+});
+
 /**
  * GET /api/criteria-sets
  * List criteria sets with optional filtering
@@ -322,6 +338,110 @@ router.post('/:id/rules', authenticate, async (req, res, next) => {
     });
 
     res.status(201).json({
+      id: rule.id,
+      name: rule.name,
+      description: rule.description,
+      expression: JSON.parse(rule.expression),
+      failureMessage: rule.failureMessage,
+      severity: rule.severity
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * PUT /api/criteria-sets/:id
+ * Update a criteria set's details (name, version, effectiveDate)
+ */
+router.put('/:id', authenticate, async (req, res, next) => {
+  try {
+    const data = updateCriteriaSetSchema.parse(req.body);
+
+    // Verify criteria set exists
+    const existing = await prisma.criteriaSet.findUnique({ where: { id: req.params.id } });
+    if (!existing) {
+      throw new AppError('Criteria set not found', 404);
+    }
+
+    // Build update data
+    const updateData: any = {};
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.version !== undefined) updateData.version = data.version;
+    if (data.effectiveDate !== undefined) updateData.effectiveDate = new Date(data.effectiveDate);
+
+    const criteriaSet = await prisma.criteriaSet.update({
+      where: { id: req.params.id },
+      data: updateData,
+      include: {
+        rules: true,
+        client: {
+          select: { id: true, name: true }
+        }
+      }
+    });
+
+    res.json({
+      id: criteriaSet.id,
+      name: criteriaSet.name,
+      version: criteriaSet.version,
+      effectiveDate: criteriaSet.effectiveDate,
+      createdAt: criteriaSet.createdAt,
+      isGlobal: criteriaSet.isGlobal,
+      client: criteriaSet.client,
+      rules: criteriaSet.rules.map((r) => ({
+        id: r.id,
+        name: r.name,
+        description: r.description,
+        expression: JSON.parse(r.expression),
+        failureMessage: r.failureMessage,
+        severity: r.severity
+      }))
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * PUT /api/criteria-sets/:id/rules/:ruleId
+ * Update a rule in a criteria set
+ */
+router.put('/:id/rules/:ruleId', authenticate, async (req, res, next) => {
+  try {
+    const data = updateRuleSchema.parse(req.body);
+
+    // Verify rule exists and belongs to this criteria set
+    const existing = await prisma.rule.findUnique({ where: { id: req.params.ruleId } });
+    if (!existing) {
+      throw new AppError('Rule not found', 404);
+    }
+    if (existing.criteriaSetId !== req.params.id) {
+      throw new AppError('Rule does not belong to this criteria set', 400);
+    }
+
+    // Validate expression if provided
+    if (data.expression !== undefined) {
+      const validation = validateExpression(data.expression);
+      if (!validation.valid) {
+        throw new AppError(`Invalid rule expression: ${validation.error}`, 400);
+      }
+    }
+
+    // Build update data
+    const updateData: any = {};
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.description !== undefined) updateData.description = data.description;
+    if (data.expression !== undefined) updateData.expression = JSON.stringify(data.expression);
+    if (data.failureMessage !== undefined) updateData.failureMessage = data.failureMessage;
+    if (data.severity !== undefined) updateData.severity = data.severity;
+
+    const rule = await prisma.rule.update({
+      where: { id: req.params.ruleId },
+      data: updateData
+    });
+
+    res.json({
       id: rule.id,
       name: rule.name,
       description: rule.description,

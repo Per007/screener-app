@@ -29,9 +29,9 @@ model Client {
 
   users            User[]
   portfolios       Portfolio[]
-  parameters       Parameter[]        // Custom parameters owned by this client
-  clientParameters ClientParameter[]  // Parameters selected by this client with thresholds
-  criteriaSets     CriteriaSet[]      // Custom criteria sets owned by this client
+  parameters       Parameter[] // Custom parameters owned by this client
+  clientParameters ClientParameter[] // Parameters selected by this client with thresholds
+  criteriaSets     CriteriaSet[] // Custom criteria sets owned by this client
 }
 
 // Portfolio of holdings
@@ -62,15 +62,15 @@ model Company {
 model Parameter {
   id          String  @id @default(uuid())
   name        String  @unique
-  dataType    String  // number | boolean | string
+  dataType    String // number | boolean | string
   unit        String?
   description String?
 
   // Ownership: global parameters are available to all clients, 
   // non-global parameters are owned by a specific client
-  isGlobal    Boolean @default(true)
-  clientId    String?
-  client      Client? @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  isGlobal Boolean @default(true)
+  clientId String?
+  client   Client? @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   companyValues    CompanyParameterValue[]
   clientParameters ClientParameter[]
@@ -83,7 +83,7 @@ model CompanyParameterValue {
   company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   parameterId String
   parameter   Parameter @relation(fields: [parameterId], references: [id], onDelete: Cascade)
-  value       String    // JSON-encoded value
+  value       String // JSON-encoded value
   asOfDate    DateTime
   source      String?
 
@@ -98,7 +98,6 @@ model PortfolioHolding {
   companyId   String
   company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   weight      Float     // percentage of portfolio
-  shares      Float?
 
   @@unique([portfolioId, companyId])
 }
@@ -113,9 +112,9 @@ model CriteriaSet {
 
   // Ownership: global criteria sets are available to all clients,
   // non-global criteria sets are owned by a specific client
-  isGlobal   Boolean @default(true)
-  clientId   String?
-  client     Client? @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  isGlobal Boolean @default(true)
+  clientId String?
+  client   Client? @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   rules            Rule[]
   screeningResults ScreeningResult[]
@@ -128,7 +127,7 @@ model Rule {
   criteriaSet    CriteriaSet @relation(fields: [criteriaSetId], references: [id], onDelete: Cascade)
   name           String
   description    String?
-  expression     String      // JSON-encoded expression tree
+  expression     String // JSON-encoded expression tree
   failureMessage String?
   severity       String      @default("exclude") // exclude | warn | info
 }
@@ -144,7 +143,7 @@ model ScreeningResult {
   user          User        @relation(fields: [userId], references: [id])
   screenedAt    DateTime    @default(now())
   asOfDate      DateTime
-  summary       String      // JSON-encoded summary
+  summary       String // JSON-encoded summary
 
   companyResults ScreeningCompanyResult[]
 }
@@ -157,17 +156,17 @@ model ScreeningCompanyResult {
   companyId         String
   company           Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
   passed            Boolean
-  ruleResults       String          // JSON-encoded detailed results
+  ruleResults       String // JSON-encoded detailed results
 }
 
 // Client's selected parameters with custom thresholds
 // This is a join table that tracks which parameters a client uses and their custom threshold settings
 model ClientParameter {
-  id             String    @id @default(uuid())
-  clientId       String
-  client         Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  parameterId    String
-  parameter      Parameter @relation(fields: [parameterId], references: [id], onDelete: Cascade)
+  id          String    @id @default(uuid())
+  clientId    String
+  client      Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  parameterId String
+  parameter   Parameter @relation(fields: [parameterId], references: [id], onDelete: Cascade)
 
   // Custom threshold settings for this client's use of the parameter
   // thresholdType: 'max' | 'min' | 'exact' | 'range' | 'exclude_if_true'
@@ -175,7 +174,7 @@ model ClientParameter {
   // thresholdValue: JSON-encoded value(s), e.g., "100" or "[50, 200]" for range
   thresholdValue String?
 
-  createdAt      DateTime  @default(now())
+  createdAt DateTime @default(now())
 
   @@unique([clientId, parameterId])
 }

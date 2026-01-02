@@ -104,9 +104,6 @@ const PortfoliosPage: React.FC = () => {
                       Last Screened
                     </th>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       % Passed
                     </th>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -140,16 +137,6 @@ const PortfoliosPage: React.FC = () => {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                            portfolio.status === 'passed' ? 'bg-green-100 text-green-800' :
-                            portfolio.status === 'warning' ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-red-100 text-red-800'
-                          }`}>
-                            {portfolio.status === 'passed' ? '🟢 Passed' : 
-                             portfolio.status === 'warning' ? '🟡 Warning' : '🔴 Failed'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-gray-900">{portfolio.summary?.passRate || 0}%</div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -173,7 +160,7 @@ const PortfoliosPage: React.FC = () => {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={8} className="px-6 py-4 text-center text-sm text-gray-500">
+                      <td colSpan={7} className="px-6 py-4 text-center text-sm text-gray-500">
                         No portfolios found
                       </td>
                     </tr>

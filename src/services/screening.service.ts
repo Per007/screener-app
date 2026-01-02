@@ -1,5 +1,5 @@
 import prisma from '../lib/prisma';
-import { evaluateExpression, getFailureReason } from './rules-engine.service';
+import { evaluateExpression, getFailureReason, getActualValue } from './rules-engine.service';
 import { RuleExpression, ComparisonCondition, RuleResult, CompanyScreeningResult, ScreeningSummary } from '../models/types';
 import { AppError } from '../middleware/error-handler';
 
@@ -139,6 +139,9 @@ export async function screenPortfolio(input: ScreeningInput) {
       const expression = JSON.parse(rule.expression) as RuleExpression;
       const passed = evaluateExpression(expression, paramMap);
 
+      // Get actual value and threshold for display (works for all rules, passed or failed)
+      const { actualValue, threshold } = getActualValue(expression, paramMap);
+
       let failureReason: string | undefined;
       if (!passed && expression.type === 'comparison') {
         failureReason = getFailureReason(expression as ComparisonCondition, paramMap, rule.failureMessage || undefined);
@@ -151,7 +154,9 @@ export async function screenPortfolio(input: ScreeningInput) {
         ruleName: rule.name,
         passed,
         severity: rule.severity,
-        failureReason
+        failureReason,
+        actualValue,
+        threshold
       });
 
       // Only 'exclude' severity rules affect pass/fail status
@@ -339,6 +344,9 @@ export async function screenIndividualCompany(input: IndividualCompanyScreeningI
     const expression = JSON.parse(rule.expression) as RuleExpression;
     const passed = evaluateExpression(expression, paramMap);
 
+    // Get actual value and threshold for display
+    const { actualValue, threshold } = getActualValue(expression, paramMap);
+
     let failureReason: string | undefined;
     if (!passed && expression.type === 'comparison') {
       failureReason = getFailureReason(expression as ComparisonCondition, paramMap, rule.failureMessage || undefined);
@@ -351,7 +359,9 @@ export async function screenIndividualCompany(input: IndividualCompanyScreeningI
       ruleName: rule.name,
       passed,
       severity: rule.severity,
-      failureReason
+      failureReason,
+      actualValue,
+      threshold
     });
 
     // Only 'exclude' severity rules affect pass/fail status
@@ -449,6 +459,9 @@ export async function screenMultipleCompanies(input: MultipleCompaniesScreeningI
       const expression = JSON.parse(rule.expression) as RuleExpression;
       const passed = evaluateExpression(expression, paramMap);
 
+      // Get actual value and threshold for display
+      const { actualValue, threshold } = getActualValue(expression, paramMap);
+
       let failureReason: string | undefined;
       if (!passed && expression.type === 'comparison') {
         failureReason = getFailureReason(expression as ComparisonCondition, paramMap, rule.failureMessage || undefined);
@@ -461,7 +474,9 @@ export async function screenMultipleCompanies(input: MultipleCompaniesScreeningI
         ruleName: rule.name,
         passed,
         severity: rule.severity,
-        failureReason
+        failureReason,
+        actualValue,
+        threshold
       });
 
       // Only 'exclude' severity rules affect pass/fail status
@@ -574,6 +589,9 @@ export async function screenBySector(input: SectorScreeningInput) {
       const expression = JSON.parse(rule.expression) as RuleExpression;
       const passed = evaluateExpression(expression, paramMap);
 
+      // Get actual value and threshold for display
+      const { actualValue, threshold } = getActualValue(expression, paramMap);
+
       let failureReason: string | undefined;
       if (!passed && expression.type === 'comparison') {
         failureReason = getFailureReason(expression as ComparisonCondition, paramMap, rule.failureMessage || undefined);
@@ -586,7 +604,9 @@ export async function screenBySector(input: SectorScreeningInput) {
         ruleName: rule.name,
         passed,
         severity: rule.severity,
-        failureReason
+        failureReason,
+        actualValue,
+        threshold
       });
 
       // Only 'exclude' severity rules affect pass/fail status
@@ -703,6 +723,9 @@ export async function screenByRegion(input: RegionScreeningInput) {
       const expression = JSON.parse(rule.expression) as RuleExpression;
       const passed = evaluateExpression(expression, paramMap);
 
+      // Get actual value and threshold for display
+      const { actualValue, threshold } = getActualValue(expression, paramMap);
+
       let failureReason: string | undefined;
       if (!passed && expression.type === 'comparison') {
         failureReason = getFailureReason(expression as ComparisonCondition, paramMap, rule.failureMessage || undefined);
@@ -715,7 +738,9 @@ export async function screenByRegion(input: RegionScreeningInput) {
         ruleName: rule.name,
         passed,
         severity: rule.severity,
-        failureReason
+        failureReason,
+        actualValue,
+        threshold
       });
 
       // Only 'exclude' severity rules affect pass/fail status
@@ -827,6 +852,9 @@ export async function screenWithCustomCriteria(input: CustomCriteriaScreeningInp
       const expression = JSON.parse(rule.expression) as RuleExpression;
       const passed = evaluateExpression(expression, paramMap);
 
+      // Get actual value and threshold for display
+      const { actualValue, threshold } = getActualValue(expression, paramMap);
+
       let failureReason: string | undefined;
       if (!passed && expression.type === 'comparison') {
         failureReason = getFailureReason(expression as ComparisonCondition, paramMap, rule.failureMessage || undefined);
@@ -839,7 +867,9 @@ export async function screenWithCustomCriteria(input: CustomCriteriaScreeningInp
         ruleName: rule.name,
         passed,
         severity: rule.severity,
-        failureReason
+        failureReason,
+        actualValue,
+        threshold
       });
 
       // Only 'exclude' severity rules affect pass/fail status

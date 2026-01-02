@@ -35,6 +35,8 @@ export interface RuleResult {
   passed: boolean;
   severity: string;
   failureReason?: string;
+  actualValue?: string | number | boolean;  // The company's actual value for this rule
+  threshold?: string;                        // The rule's threshold/expected value
 }
 
 export interface CompanyScreeningResult {
@@ -65,8 +67,6 @@ export interface ImportRow {
   ticker?: string;
   
   // Portfolio-specific fields
-  weight?: number;  // Percentage weight in portfolio (0-100)
-  shares?: number;  // Number of shares held
   sector?: string;  // Company sector classification
   
   // Dynamic parameter values - keys are parameter names, values are the scores/values
