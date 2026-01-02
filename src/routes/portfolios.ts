@@ -3,6 +3,7 @@ import { z } from 'zod';
 import prisma from '../lib/prisma';
 import { authenticate } from '../middleware/auth';
 import { AppError } from '../middleware/error-handler';
+import { AuthRequest } from '../models/types';
 
 const router = Router();
 
@@ -20,6 +21,72 @@ const holdingSchema = z.object({
 
 const holdingsSchema = z.object({
   holdings: z.array(holdingSchema)
+});
+
+// List portfolios for the authenticated user's client (admins see all)
+router.get('/portfolios', authenticate, async (req: AuthRequest, res, next) => {
+  try {
+    const user = req.user;
+    
+    if (!user) {
+      throw new AppError('Not authenticated', 401);
+    }
+
+    // Admins can see all portfolios, regular users only see their client's portfolios
+    const whereClause = user.role === 'admin' 
+      ? {} 
+      : user.clientId 
+        ? { clientId: user.clientId }
+        : { clientId: 'none' }; // No portfolios if user has no client
+
+    const portfolios = await prisma.portfolio.findMany({
+      where: whereClause,
+      orderBy: { name: 'asc' },
+      include: {
+        client: {
+          select: {
+            id: true,
+            name: true
+          }
+        },
+        holdings: {
+          include: {
+            company: {
+              select: {
+                id: true,
+                name: true,
+                ticker: true
+              }
+            }
+          }
+        },
+        _count: { 
+          select: { holdings: true } 
+        }
+      }
+    });
+
+    // Format portfolios with additional computed fields
+    const formattedPortfolios = portfolios.map(portfolio => ({
+      id: portfolio.id,
+      name: portfolio.name,
+      client: portfolio.client,
+      holdings: portfolio.holdings,
+      holdingsCount: portfolio._count.holdings,
+      createdAt: portfolio.createdAt,
+      // These fields would come from screening results if available
+      lastScreenedAt: null,
+      status: 'pending',
+      summary: {
+        passRate: 0,
+        failed: 0
+      }
+    }));
+
+    res.json(formattedPortfolios);
+  } catch (err) {
+    next(err);
+  }
 });
 
 // List portfolios for a client

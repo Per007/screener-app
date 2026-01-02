@@ -1,6 +1,31 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+/* Custom theme configuration for Tailwind v4 */
+@theme {
+  /* Navy colors */
+  --color-navy-50: #f0f5ff;
+  --color-navy-100: #e0eaff;
+  --color-navy-200: #c3d9ff;
+  --color-navy-300: #a6c8ff;
+  --color-navy-400: #8ab7ff;
+  --color-navy-500: #6ea6ff;
+  --color-navy-600: #1a2332;
+  --color-navy-700: #151c29;
+  --color-navy-800: #101520;
+  --color-navy-900: #0b0e17;
+  
+  /* Gold colors */
+  --color-gold-50: #fdfaf6;
+  --color-gold-100: #fbf5ee;
+  --color-gold-200: #f8eddd;
+  --color-gold-300: #f5e5cc;
+  --color-gold-400: #f2ddbb;
+  --color-gold-500: #efd5aa;
+  --color-gold-600: #d4a574;
+  --color-gold-700: #b88e5a;
+  --color-gold-800: #9c7740;
+  --color-gold-900: #806026;
+}
 
 /* Custom styles can be added here */
 body {
