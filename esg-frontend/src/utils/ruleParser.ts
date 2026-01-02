@@ -89,7 +89,7 @@ export function parseRuleExpression(expressionString: string): ComparisonConditi
   
   return {
     type: 'comparison',
-    parameter: parameter.toUpperCase(), // Normalize to uppercase
+    parameter: parameter, // Preserve original case to match database parameter names
     operator: operator as ComparisonOperator,
     value: value
   };
