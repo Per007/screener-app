@@ -1,0 +1,225 @@
+### ESG Screener API Tests
+### Use VS Code REST Client extension to run these
+
+@baseUrl = http://localhost:3000
+@token = {{login.response.body.token}}
+
+### Login
+# @name login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@example.com",
+  "password": "admin123"
+}
+
+### Get Current User
+GET {{baseUrl}}/auth/me
+Authorization: Bearer {{token}}
+
+### List Parameters
+GET {{baseUrl}}/parameters
+Authorization: Bearer {{token}}
+
+### List Companies
+GET {{baseUrl}}/companies
+Authorization: Bearer {{token}}
+
+### List Clients
+GET {{baseUrl}}/clients
+Authorization: Bearer {{token}}
+
+### List Criteria Sets
+GET {{baseUrl}}/criteria-sets
+Authorization: Bearer {{token}}
+
+### Run Screening (update IDs from responses above)
+POST {{baseUrl}}/screen
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "portfolioId": "0074e32c-9bae-4bfc-b6c6-71d753a3cc92",
+  "criteriaSetId": "d87a02a8-6009-44e6-af2c-4af61462ea44"
+}
+
+### List Screening Results
+GET {{baseUrl}}/screening-results
+Authorization: Bearer {{token}}
+
+### Create a new Parameter
+POST {{baseUrl}}/parameters
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "water_usage",
+  "dataType": "number",
+  "unit": "cubic meters/year",
+  "description": "Annual water consumption"
+}
+
+### Create a new Company
+POST {{baseUrl}}/companies
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "EcoFriendly Corp",
+  "ticker": "ECO",
+  "sector": "Manufacturing"
+}
+
+###############################################
+### Client Parameters API (NEW)
+### Allows clients to select parameters and set custom thresholds
+###############################################
+
+### List parameters available for a client (global + client-owned)
+### Replace :clientId with an actual client ID
+GET {{baseUrl}}/parameters?clientId=YOUR_CLIENT_ID
+Authorization: Bearer {{token}}
+
+### Create a client-specific (custom) parameter
+POST {{baseUrl}}/parameters
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "custom_esg_score",
+  "dataType": "number",
+  "unit": "points",
+  "description": "Client's custom ESG scoring metric",
+  "clientId": "YOUR_CLIENT_ID"
+}
+
+### Get client's selected parameters with thresholds
+### Replace :clientId with an actual client ID
+GET {{baseUrl}}/clients/YOUR_CLIENT_ID/parameters
+Authorization: Bearer {{token}}
+
+### Add a parameter to client's selection with threshold
+### Replace YOUR_CLIENT_ID and YOUR_PARAMETER_ID
+POST {{baseUrl}}/clients/YOUR_CLIENT_ID/parameters
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "parameterId": "YOUR_PARAMETER_ID",
+  "thresholdType": "max",
+  "thresholdValue": "100"
+}
+
+### Update threshold for a selected parameter
+PUT {{baseUrl}}/clients/YOUR_CLIENT_ID/parameters/YOUR_PARAMETER_ID
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "thresholdType": "range",
+  "thresholdValue": "[0, 50]"
+}
+
+### Remove parameter from client's selection
+DELETE {{baseUrl}}/clients/YOUR_CLIENT_ID/parameters/YOUR_PARAMETER_ID
+Authorization: Bearer {{token}}
+
+###############################################
+### Client Criteria Sets API (NEW)
+### Allows clients to have their own criteria sets
+###############################################
+
+### List criteria sets for a client (global + client-owned)
+GET {{baseUrl}}/criteria-sets?clientId=YOUR_CLIENT_ID
+Authorization: Bearer {{token}}
+
+### List only global criteria sets
+GET {{baseUrl}}/criteria-sets?globalOnly=true
+Authorization: Bearer {{token}}
+
+### Create a client-specific criteria set
+POST {{baseUrl}}/criteria-sets
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "My Ethical Exclusions",
+  "version": "1.0",
+  "effectiveDate": "2025-01-01T00:00:00Z",
+  "clientId": "YOUR_CLIENT_ID",
+  "rules": [
+    {
+      "name": "No Weapons",
+      "expression": {
+        "type": "comparison",
+        "parameter": "weapons_involvement",
+        "operator": "==",
+        "value": false
+      },
+      "severity": "exclude",
+      "failureMessage": "Company is involved in weapons manufacturing"
+    }
+  ]
+}
+
+### Copy a global criteria set to a client
+POST {{baseUrl}}/criteria-sets/YOUR_CRITERIA_SET_ID/copy
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "clientId": "YOUR_CLIENT_ID",
+  "newName": "My Copy of ESG Standard",
+  "newVersion": "1.0-custom"
+}
+
+###############################################
+### Portfolio Import API
+###############################################
+
+### Download CSV Template (with example data)
+GET {{baseUrl}}/import/template
+Authorization: Bearer {{token}}
+
+### Download CSV Template (empty, headers only)
+GET {{baseUrl}}/import/template?includeExamples=false
+Authorization: Bearer {{token}}
+
+### Validate a CSV file before importing
+### Note: Use a tool like curl or Postman for actual file uploads
+### This is just a reference for the endpoint structure
+# POST {{baseUrl}}/import/validate
+# Authorization: Bearer {{token}}
+# Content-Type: multipart/form-data
+# 
+# file=@portfolio-data.csv
+
+### Import a portfolio from CSV file
+### Replace :clientId with an actual client ID
+### Note: Use a tool like curl or Postman for actual file uploads
+# POST {{baseUrl}}/import/portfolios/:clientId
+# Authorization: Bearer {{token}}
+# Content-Type: multipart/form-data
+# 
+# file=@portfolio-data.csv
+# portfolioName=My Imported Portfolio
+# createMissingCompanies=true
+# createMissingParameters=true
+# updateExistingValues=true
+# source=manual-import
+
+### Example curl commands for file upload:
+###
+### Validate a CSV file:
+### curl -X POST http://localhost:3000/import/validate \
+###   -H "Authorization: Bearer YOUR_TOKEN" \
+###   -F "file=@portfolio-data.csv"
+###
+### Import a portfolio:
+### curl -X POST http://localhost:3000/import/portfolios/YOUR_CLIENT_ID \
+###   -H "Authorization: Bearer YOUR_TOKEN" \
+###   -F "file=@portfolio-data.csv" \
+###   -F "portfolioName=My Portfolio" \
+###   -F "createMissingCompanies=true" \
+###   -F "createMissingParameters=true"

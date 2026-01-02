@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+esg-frontend/node_modules/
+
+# Build outputs
+dist/
+esg-frontend/dist/
+esg-frontend/build/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Prisma
+prisma/migrations/

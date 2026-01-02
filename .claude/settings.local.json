@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx prisma generate:*)",
+      "Bash(npx ts-node:*)",
+      "Bash(npm run dev:*)",
+      "Bash(curl:*)",
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImU1ZmU3YmZhLWEwY2ItNDY0ZS05Zjc5LTc2MTU5ZTU2YzhlYyIsImVtYWlsIjoiYWRtaW5AZXhhbXBsZS5jb20iLCJuYW1lIjoiQWRtaW4gVXNlciIsInJvbGUiOiJhZG1pbiIsImNsaWVudElkIjpudWxsLCJpYXQiOjE3NjYxNzg5NDUsImV4cCI6MTc2Njc4Mzc0NX0.dPTycnps6ZXItmpd67AsCm7GgOAqzOS_limmIXEHLqs\")"
+    ]
+  }
+}

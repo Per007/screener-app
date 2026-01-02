@@ -1,0 +1,181 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Authentication
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         String   @default("analyst") // admin | analyst
+  clientId     String?
+  client       Client?  @relation(fields: [clientId], references: [id])
+  createdAt    DateTime @default(now())
+
+  screeningResults ScreeningResult[]
+}
+
+// Client organization
+model Client {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+
+  users            User[]
+  portfolios       Portfolio[]
+  parameters       Parameter[]        // Custom parameters owned by this client
+  clientParameters ClientParameter[]  // Parameters selected by this client with thresholds
+  criteriaSets     CriteriaSet[]      // Custom criteria sets owned by this client
+}
+
+// Portfolio of holdings
+model Portfolio {
+  id        String   @id @default(uuid())
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name      String
+  createdAt DateTime @default(now())
+
+  holdings         PortfolioHolding[]
+  screeningResults ScreeningResult[]
+}
+
+// Company entity
+model Company {
+  id     String  @id @default(uuid())
+  name   String
+  ticker String?
+  sector String?
+
+  parameterValues  CompanyParameterValue[]
+  holdings         PortfolioHolding[]
+  screeningResults ScreeningCompanyResult[]
+}
+
+// ESG parameter definitions
+model Parameter {
+  id          String  @id @default(uuid())
+  name        String  @unique
+  dataType    String  // number | boolean | string
+  unit        String?
+  description String?
+
+  // Ownership: global parameters are available to all clients, 
+  // non-global parameters are owned by a specific client
+  isGlobal    Boolean @default(true)
+  clientId    String?
+  client      Client? @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  companyValues    CompanyParameterValue[]
+  clientParameters ClientParameter[]
+}
+
+// Company's value for a parameter
+model CompanyParameterValue {
+  id          String    @id @default(uuid())
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  parameterId String
+  parameter   Parameter @relation(fields: [parameterId], references: [id], onDelete: Cascade)
+  value       String    // JSON-encoded value
+  asOfDate    DateTime
+  source      String?
+
+  @@unique([companyId, parameterId, asOfDate])
+}
+
+// Portfolio holding (join table)
+model PortfolioHolding {
+  id          String    @id @default(uuid())
+  portfolioId String
+  portfolio   Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  weight      Float     // percentage of portfolio
+  shares      Float?
+
+  @@unique([portfolioId, companyId])
+}
+
+// Versioned criteria set
+model CriteriaSet {
+  id            String   @id @default(uuid())
+  name          String
+  version       String
+  effectiveDate DateTime
+  createdAt     DateTime @default(now())
+
+  // Ownership: global criteria sets are available to all clients,
+  // non-global criteria sets are owned by a specific client
+  isGlobal   Boolean @default(true)
+  clientId   String?
+  client     Client? @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  rules            Rule[]
+  screeningResults ScreeningResult[]
+}
+
+// Individual rule within a criteria set
+model Rule {
+  id             String      @id @default(uuid())
+  criteriaSetId  String
+  criteriaSet    CriteriaSet @relation(fields: [criteriaSetId], references: [id], onDelete: Cascade)
+  name           String
+  description    String?
+  expression     String      // JSON-encoded expression tree
+  failureMessage String?
+  severity       String      @default("exclude") // exclude | warn | info
+}
+
+// Historical screening result
+model ScreeningResult {
+  id            String      @id @default(uuid())
+  portfolioId   String
+  portfolio     Portfolio   @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  criteriaSetId String
+  criteriaSet   CriteriaSet @relation(fields: [criteriaSetId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User        @relation(fields: [userId], references: [id])
+  screenedAt    DateTime    @default(now())
+  asOfDate      DateTime
+  summary       String      // JSON-encoded summary
+
+  companyResults ScreeningCompanyResult[]
+}
+
+// Per-company screening result
+model ScreeningCompanyResult {
+  id                String          @id @default(uuid())
+  screeningResultId String
+  screeningResult   ScreeningResult @relation(fields: [screeningResultId], references: [id], onDelete: Cascade)
+  companyId         String
+  company           Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  passed            Boolean
+  ruleResults       String          // JSON-encoded detailed results
+}
+
+// Client's selected parameters with custom thresholds
+// This is a join table that tracks which parameters a client uses and their custom threshold settings
+model ClientParameter {
+  id             String    @id @default(uuid())
+  clientId       String
+  client         Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  parameterId    String
+  parameter      Parameter @relation(fields: [parameterId], references: [id], onDelete: Cascade)
+
+  // Custom threshold settings for this client's use of the parameter
+  // thresholdType: 'max' | 'min' | 'exact' | 'range' | 'exclude_if_true'
+  thresholdType  String?
+  // thresholdValue: JSON-encoded value(s), e.g., "100" or "[50, 200]" for range
+  thresholdValue String?
+
+  createdAt      DateTime  @default(now())
+
+  @@unique([clientId, parameterId])
+}

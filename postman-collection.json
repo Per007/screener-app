@@ -1,0 +1,164 @@
+{
+  "info": {
+    "name": "ESG Screener API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000" },
+    { "key": "token", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": ["pm.collectionVariables.set('token', pm.response.json().token);"]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\": \"admin@example.com\", \"password\": \"admin123\"}"
+            }
+          }
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/auth/me",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Parameters",
+      "item": [
+        {
+          "name": "List Parameters",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/parameters",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        },
+        {
+          "name": "Create Parameter",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/parameters",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\": \"water_usage\", \"dataType\": \"number\", \"unit\": \"liters/year\"}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Companies",
+      "item": [
+        {
+          "name": "List Companies",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/companies",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        },
+        {
+          "name": "Get Company",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/companies/:id",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Clients",
+      "item": [
+        {
+          "name": "List Clients",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/clients",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        },
+        {
+          "name": "Get Client Portfolios",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/clients/:clientId/portfolios",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Criteria Sets",
+      "item": [
+        {
+          "name": "List Criteria Sets",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/criteria-sets",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        },
+        {
+          "name": "Get Criteria Set",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/criteria-sets/:id",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Screening",
+      "item": [
+        {
+          "name": "Run Screening",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/screen",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"portfolioId\": \"PORTFOLIO_ID\", \"criteriaSetId\": \"CRITERIA_SET_ID\"}"
+            }
+          }
+        },
+        {
+          "name": "List Screening Results",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/screening-results",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }]
+          }
+        }
+      ]
+    }
+  ]
+}
