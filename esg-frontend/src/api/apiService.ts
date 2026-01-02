@@ -125,6 +125,10 @@ class ApiService {
     return this.request({ method: 'POST', url: '/portfolios', data });
   }
 
+  public async deletePortfolio(id: string): Promise<void> {
+    return this.request({ method: 'DELETE', url: `/portfolios/${id}` });
+  }
+
   public async addHoldingToPortfolio(portfolioId: string, data: { companyId: string; weight: number }): Promise<any> {
     return this.request({ method: 'POST', url: `/portfolios/${portfolioId}/holdings/add`, data });
   }

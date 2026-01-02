@@ -188,15 +188,15 @@ async function main() {
     data: {
       clientId: client.id,
       name: 'Main Portfolio',
-      holdings: {
-        create: [
-          { companyId: companies[0].id },
-          { companyId: companies[1].id },
-          { companyId: companies[2].id },
-          { companyId: companies[3].id },
-          { companyId: companies[4].id }
-        ]
-      }
+holdings: {
+  create: [
+    { companyId: companies[0].id, weight: 20.0 },
+    { companyId: companies[1].id, weight: 20.0 },
+    { companyId: companies[2].id, weight: 20.0 },
+    { companyId: companies[3].id, weight: 20.0 },
+    { companyId: companies[4].id, weight: 20.0 }
+  ]
+}
     }
   });
   console.log('Created portfolio:', portfolio.name);

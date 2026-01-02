@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { apiService } from '../api/apiService';
 import { useAuth } from '../context/AuthContext';
-import { PlusIcon, CogIcon } from '@heroicons/react/24/solid';
+import { PlusIcon, CogIcon, TrashIcon } from '@heroicons/react/24/solid';
 import { MagnifyingGlassIcon as SearchIcon, BuildingOffice2Icon, FolderIcon } from '@heroicons/react/24/outline';
 
 // Tab definitions for switching between Portfolios and Companies views
@@ -16,23 +16,38 @@ const PortfoliosPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const { isAdmin } = useAuth();
   const location = useLocation();
 
+  const fetchPortfolios = async () => {
+    try {
+      const data = await apiService.getPortfolios();
+      setPortfolios(data);
+    } catch (err) {
+      setError('Failed to fetch portfolios');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchPortfolios = async () => {
-      try {
-        const data = await apiService.getPortfolios();
-        setPortfolios(data);
-      } catch (err) {
-        setError('Failed to fetch portfolios');
-      } finally {
-        setLoading(false);
-      }
-    };
-    
     fetchPortfolios();
   }, []);
+
+  const handleDelete = async (portfolioId: string) => {
+    setDeleting(true);
+    try {
+      await apiService.deletePortfolio(portfolioId);
+      setPortfolios(portfolios.filter(p => p.id !== portfolioId));
+      setDeleteConfirm(null);
+    } catch (err) {
+      setError('Failed to delete portfolio');
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const filteredPortfolios = portfolios.filter(portfolio =>
     portfolio.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -183,16 +198,25 @@ const PortfoliosPage: React.FC = () => {
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <Link
                             to={`/portfolios/${portfolio.id}`}
-                            className="text-navy-600 hover:text-navy-900 mr-2"
+                            className="text-navy-600 hover:text-navy-900 mr-3"
                           >
                             View
                           </Link>
                           <button
                             onClick={() => console.log('Screen portfolio', portfolio.id)}
-                            className="text-navy-600 hover:text-navy-900"
+                            className="text-navy-600 hover:text-navy-900 mr-3"
                           >
                             Screen
                           </button>
+                          {isAdmin && (
+                            <button
+                              onClick={() => setDeleteConfirm(portfolio.id)}
+                              className="text-red-600 hover:text-red-900"
+                              title="Delete portfolio"
+                            >
+                              <TrashIcon className="h-4 w-4 inline" />
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))
@@ -209,6 +233,35 @@ const PortfoliosPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center">
+          <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Delete Portfolio</h3>
+            <p className="text-sm text-gray-500 mb-6">
+              Are you sure you want to delete this portfolio? This action cannot be undone. 
+              All holdings and screening results associated with this portfolio will also be deleted.
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                disabled={deleting}
+                className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-navy-500"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDelete(deleteConfirm)}
+                disabled={deleting}
+                className="px-4 py-2 border border-transparent rounded-md text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50"
+              >
+                {deleting ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
