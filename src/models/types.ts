@@ -127,3 +127,46 @@ export interface ImportOptions {
   // Source identifier for the imported data
   source?: string;
 }
+
+// =====================================
+// Parameter Analysis Types (for Import Preview)
+// =====================================
+
+/**
+ * Information about an existing parameter that a CSV column will map to
+ */
+export interface ExistingParameterInfo {
+  /** The parameter name as stored in the database */
+  name: string;
+  /** The parameter's database ID */
+  id: string;
+  /** The parameter's data type (number, boolean, string) */
+  dataType: string;
+  /** The original column name from the CSV (may differ in case) */
+  csvColumnName: string;
+}
+
+/**
+ * Information about a new parameter that will be created during import
+ */
+export interface NewParameterInfo {
+  /** The column name from the CSV (will become the parameter name) */
+  name: string;
+  /** The data type inferred from sample values (number, boolean, string) */
+  inferredType: 'number' | 'boolean' | 'string';
+  /** Sample values from the CSV to help users verify the inferred type */
+  sampleValues: (string | number | boolean)[];
+}
+
+/**
+ * Analysis of CSV columns compared against existing parameters
+ * Used to show users what will happen during import:
+ * - Which columns map to existing parameters
+ * - Which columns will create new parameters
+ */
+export interface ParameterAnalysis {
+  /** Columns that match existing parameters in the database */
+  existingParameters: ExistingParameterInfo[];
+  /** Columns that will create new parameters during import */
+  newParameters: NewParameterInfo[];
+}

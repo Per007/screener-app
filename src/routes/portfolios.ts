@@ -302,4 +302,86 @@ router.delete('/portfolios/:id', authenticate, async (req, res, next) => {
   }
 });
 
+/**
+ * POST /portfolios/:id/normalize-weights
+ * 
+ * Normalize all holding weights in a portfolio to sum to exactly 100%.
+ * This is useful for fixing portfolios imported with raw weights that don't sum to 100%.
+ * 
+ * The normalization formula: newWeight = (oldWeight / totalWeight) * 100
+ * 
+ * Example:
+ * - Before: Shell 100, Apple 1000, Microsoft 800, ExxonMobil 500 (Total: 2400)
+ * - After:  Shell 4.17%, Apple 41.67%, Microsoft 33.33%, ExxonMobil 20.83% (Total: 100%)
+ */
+router.post('/portfolios/:id/normalize-weights', authenticate, async (req, res, next) => {
+  try {
+    const portfolioId = req.params.id;
+
+    // Get portfolio with holdings
+    const portfolio = await prisma.portfolio.findUnique({
+      where: { id: portfolioId },
+      include: {
+        holdings: {
+          include: { company: true }
+        }
+      }
+    });
+
+    if (!portfolio) {
+      throw new AppError('Portfolio not found', 404);
+    }
+
+    if (portfolio.holdings.length === 0) {
+      throw new AppError('Portfolio has no holdings to normalize', 400);
+    }
+
+    // Calculate total weight
+    const totalWeight = portfolio.holdings.reduce((sum, h) => sum + (h.weight || 0), 0);
+
+    if (totalWeight === 0) {
+      // If all weights are 0, distribute equally
+      const equalWeight = 100 / portfolio.holdings.length;
+      await prisma.$transaction(
+        portfolio.holdings.map(holding =>
+          prisma.portfolioHolding.update({
+            where: { id: holding.id },
+            data: { weight: equalWeight }
+          })
+        )
+      );
+    } else {
+      // Normalize each weight: (weight / totalWeight) * 100
+      await prisma.$transaction(
+        portfolio.holdings.map(holding => {
+          const normalizedWeight = ((holding.weight || 0) / totalWeight) * 100;
+          return prisma.portfolioHolding.update({
+            where: { id: holding.id },
+            data: { weight: normalizedWeight }
+          });
+        })
+      );
+    }
+
+    // Return updated portfolio
+    const updatedPortfolio = await prisma.portfolio.findUnique({
+      where: { id: portfolioId },
+      include: {
+        client: true,
+        holdings: {
+          include: { company: true }
+        }
+      }
+    });
+
+    res.json({
+      message: `Weights normalized from ${totalWeight.toFixed(2)}% to 100%`,
+      originalTotal: totalWeight,
+      portfolio: updatedPortfolio
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;

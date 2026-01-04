@@ -128,10 +128,38 @@ class ApiService {
   public async addHoldingToPortfolio(portfolioId: string, data: { companyId: string; weight: number }): Promise<any> {
     return this.request({ method: 'POST', url: `/portfolios/${portfolioId}/holdings/add`, data });
   }
+
+  /**
+   * Normalize portfolio weights to sum to exactly 100%
+   * This rescales all holdings proportionally so their weights total 100%
+   */
+  public async normalizePortfolioWeights(portfolioId: string): Promise<{
+    message: string;
+    originalTotal: number;
+    portfolio: any;
+  }> {
+    return this.request({ method: 'POST', url: `/portfolios/${portfolioId}/normalize-weights` });
+  }
   
   // Client endpoints
   public async getClients(): Promise<any> {
     return this.request({ method: 'GET', url: '/clients' });
+  }
+
+  public async getClient(id: string): Promise<any> {
+    return this.request({ method: 'GET', url: `/clients/${id}` });
+  }
+
+  public async createClient(data: { name: string }): Promise<any> {
+    return this.request({ method: 'POST', url: '/clients', data });
+  }
+
+  public async updateClient(id: string, data: { name: string }): Promise<any> {
+    return this.request({ method: 'PUT', url: `/clients/${id}`, data });
+  }
+
+  public async deleteClient(id: string): Promise<void> {
+    return this.request({ method: 'DELETE', url: `/clients/${id}` });
   }
   
   public async screenPortfolio(id: string, data: any): Promise<any> {
@@ -152,6 +180,53 @@ class ApiService {
 
   public async deleteScreeningResult(id: string): Promise<any> {
     return this.request({ method: 'DELETE', url: `/screening-results/${id}` });
+  }
+
+  /**
+   * Validate that all parameters required by the criteria set are available
+   * for all companies in the portfolio. Call this BEFORE running a screening.
+   */
+  public async validatePortfolioScreening(data: { 
+    portfolioId: string; 
+    criteriaSetId: string; 
+    asOfDate?: string 
+  }): Promise<{
+    isValid: boolean;
+    totalCompanies: number;
+    companiesWithCompleteData: number;
+    companiesWithMissingData: number;
+    requiredParameters: string[];
+    missingParameters: string[];
+    companyIssues: Array<{
+      companyId: string;
+      companyName: string;
+      missingParameters: string[];
+    }>;
+  }> {
+    return this.request({ method: 'POST', url: '/screen/validate', data });
+  }
+
+  /**
+   * Validate parameters for a specific set of companies
+   */
+  public async validateCompaniesScreening(data: {
+    companyIds: string[];
+    criteriaSetId: string;
+    asOfDate?: string;
+  }): Promise<{
+    isValid: boolean;
+    totalCompanies: number;
+    companiesWithCompleteData: number;
+    companiesWithMissingData: number;
+    requiredParameters: string[];
+    missingParameters: string[];
+    companyIssues: Array<{
+      companyId: string;
+      companyName: string;
+      missingParameters: string[];
+    }>;
+  }> {
+    return this.request({ method: 'POST', url: '/screen/validate/companies', data });
   }
   
   // Company endpoints
@@ -317,6 +392,51 @@ class ApiService {
   
   public async logout(): Promise<any> {
     return this.request({ method: 'POST', url: '/auth/logout' });
+  }
+
+  // Admin endpoints
+  /**
+   * Get database statistics (counts for all tables)
+   * Requires admin role
+   */
+  public async getAdminStats(): Promise<{
+    users: number;
+    clients: number;
+    portfolios: number;
+    companies: number;
+    parameters: number;
+    companyParameterValues: number;
+    portfolioHoldings: number;
+    criteriaSets: number;
+    rules: number;
+    screeningResults: number;
+    screeningCompanyResults: number;
+    clientParameters: number;
+  }> {
+    return this.request({ method: 'GET', url: '/admin/stats' });
+  }
+
+  /**
+   * Delete data from a specific table
+   * Requires admin role
+   * @param endpoint - The cleanup endpoint (e.g., 'screening-results', 'portfolios', etc.)
+   */
+  public async adminDeleteData(endpoint: string): Promise<{
+    message: string;
+    deletedCount: number;
+  }> {
+    return this.request({ method: 'DELETE', url: `/admin/${endpoint}` });
+  }
+
+  /**
+   * Reset the entire database (except admin users)
+   * Requires admin role
+   */
+  public async adminResetDatabase(): Promise<{
+    message: string;
+    deletedCounts: Record<string, number>;
+  }> {
+    return this.request({ method: 'DELETE', url: '/admin/reset' });
   }
 }
 

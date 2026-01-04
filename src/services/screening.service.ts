@@ -3,6 +3,327 @@ import { evaluateExpression, getFailureReason, getActualValue } from './rules-en
 import { RuleExpression, ComparisonCondition, RuleResult, CompanyScreeningResult, ScreeningSummary } from '../models/types';
 import { AppError } from '../middleware/error-handler';
 
+// =============================================================================
+// Parameter Extraction & Validation Types
+// =============================================================================
+
+/**
+ * Represents a company that is missing required parameters
+ */
+interface CompanyMissingParameters {
+  companyId: string;
+  companyName: string;
+  missingParameters: string[];
+}
+
+/**
+ * Validation result returned before running a screening
+ */
+export interface ParameterValidationResult {
+  /** Whether all required parameters are available for all companies */
+  isValid: boolean;
+  /** Total number of companies in the portfolio */
+  totalCompanies: number;
+  /** Number of companies with complete parameter data */
+  companiesWithCompleteData: number;
+  /** Number of companies missing at least one parameter */
+  companiesWithMissingData: number;
+  /** List of all parameters required by the criteria set rules */
+  requiredParameters: string[];
+  /** List of parameters that are completely missing (no company has this value) */
+  missingParameters: string[];
+  /** Detailed breakdown of which companies are missing which parameters */
+  companyIssues: CompanyMissingParameters[];
+}
+
+// =============================================================================
+// Helper Functions for Parameter Extraction
+// =============================================================================
+
+/**
+ * Recursively extracts all parameter names from a rule expression.
+ * This handles nested logical expressions (AND, OR, NOT) and comparison conditions.
+ * 
+ * @param expression - The rule expression to extract parameters from
+ * @returns Array of unique parameter names used in the expression
+ */
+export function extractParametersFromExpression(expression: RuleExpression): string[] {
+  const parameters: Set<string> = new Set();
+  
+  // Helper function for recursive extraction
+  function extract(expr: RuleExpression): void {
+    if (expr.type === 'comparison') {
+      // Comparison conditions have a single parameter
+      parameters.add(expr.parameter);
+    } else if (expr.type === 'AND' || expr.type === 'OR' || expr.type === 'NOT') {
+      // Logical conditions have nested conditions
+      for (const condition of expr.conditions) {
+        extract(condition);
+      }
+    }
+  }
+  
+  extract(expression);
+  return Array.from(parameters);
+}
+
+/**
+ * Extracts all parameter names from all rules in a criteria set.
+ * 
+ * @param rules - Array of rules with JSON-encoded expressions
+ * @returns Array of unique parameter names required by all rules
+ */
+export function extractAllParametersFromRules(rules: { expression: string }[]): string[] {
+  const allParameters: Set<string> = new Set();
+  
+  for (const rule of rules) {
+    try {
+      const expression = JSON.parse(rule.expression) as RuleExpression;
+      const params = extractParametersFromExpression(expression);
+      params.forEach(p => allParameters.add(p));
+    } catch (error) {
+      // If we can't parse the expression, log a warning but continue
+      console.warn(`[Validation] Could not parse rule expression: ${rule.expression}`);
+    }
+  }
+  
+  return Array.from(allParameters);
+}
+
+// =============================================================================
+// Validation Functions
+// =============================================================================
+
+interface ValidatePortfolioInput {
+  portfolioId: string;
+  criteriaSetId: string;
+  asOfDate?: Date;
+}
+
+interface ValidateCompaniesInput {
+  companyIds: string[];
+  criteriaSetId: string;
+  asOfDate?: Date;
+}
+
+/**
+ * Validates that all parameters required by the criteria set rules are available
+ * for all companies in the portfolio. This should be called BEFORE running a screening.
+ * 
+ * @param input - Portfolio ID, criteria set ID, and optional as-of date
+ * @returns Validation result with detailed information about missing parameters
+ */
+export async function validatePortfolioParameters(input: ValidatePortfolioInput): Promise<ParameterValidationResult> {
+  const { portfolioId, criteriaSetId, asOfDate = new Date() } = input;
+
+  // Fetch portfolio with holdings
+  const portfolio = await prisma.portfolio.findUnique({
+    where: { id: portfolioId },
+    include: {
+      holdings: {
+        include: { company: true }
+      }
+    }
+  });
+
+  if (!portfolio) {
+    throw new AppError('Portfolio not found', 404);
+  }
+
+  // Fetch criteria set with rules
+  const criteriaSet = await prisma.criteriaSet.findUnique({
+    where: { id: criteriaSetId },
+    include: { rules: true }
+  });
+
+  if (!criteriaSet) {
+    throw new AppError('Criteria set not found', 404);
+  }
+
+  // Extract all required parameters from the rules
+  const requiredParameters = extractAllParametersFromRules(criteriaSet.rules);
+  
+  if (requiredParameters.length === 0) {
+    // No parameters required means validation passes
+    return {
+      isValid: true,
+      totalCompanies: portfolio.holdings.length,
+      companiesWithCompleteData: portfolio.holdings.length,
+      companiesWithMissingData: 0,
+      requiredParameters: [],
+      missingParameters: [],
+      companyIssues: []
+    };
+  }
+
+  // Get company IDs from portfolio
+  const companyIds = portfolio.holdings.map(h => h.companyId);
+  
+  // Build company name map for the result
+  const companyNameMap = new Map<string, string>();
+  portfolio.holdings.forEach(h => {
+    companyNameMap.set(h.company.id, h.company.name);
+  });
+
+  // Validate parameters for these companies
+  return validateCompanyParametersInternal(
+    companyIds,
+    companyNameMap,
+    requiredParameters,
+    asOfDate
+  );
+}
+
+/**
+ * Validates that all parameters required by the criteria set rules are available
+ * for a specific set of companies.
+ * 
+ * @param input - Company IDs, criteria set ID, and optional as-of date
+ * @returns Validation result with detailed information about missing parameters
+ */
+export async function validateCompaniesParameters(input: ValidateCompaniesInput): Promise<ParameterValidationResult> {
+  const { companyIds, criteriaSetId, asOfDate = new Date() } = input;
+
+  // Fetch criteria set with rules
+  const criteriaSet = await prisma.criteriaSet.findUnique({
+    where: { id: criteriaSetId },
+    include: { rules: true }
+  });
+
+  if (!criteriaSet) {
+    throw new AppError('Criteria set not found', 404);
+  }
+
+  // Fetch companies
+  const companies = await prisma.company.findMany({
+    where: { id: { in: companyIds } }
+  });
+
+  if (companies.length === 0) {
+    throw new AppError('No companies found', 404);
+  }
+
+  // Extract all required parameters from the rules
+  const requiredParameters = extractAllParametersFromRules(criteriaSet.rules);
+  
+  if (requiredParameters.length === 0) {
+    return {
+      isValid: true,
+      totalCompanies: companies.length,
+      companiesWithCompleteData: companies.length,
+      companiesWithMissingData: 0,
+      requiredParameters: [],
+      missingParameters: [],
+      companyIssues: []
+    };
+  }
+
+  // Build company name map
+  const companyNameMap = new Map<string, string>();
+  companies.forEach(c => {
+    companyNameMap.set(c.id, c.name);
+  });
+
+  return validateCompanyParametersInternal(
+    companyIds,
+    companyNameMap,
+    requiredParameters,
+    asOfDate
+  );
+}
+
+/**
+ * Internal helper that performs the actual parameter validation logic.
+ * This is shared between portfolio and company validation.
+ */
+async function validateCompanyParametersInternal(
+  companyIds: string[],
+  companyNameMap: Map<string, string>,
+  requiredParameters: string[],
+  asOfDate: Date
+): Promise<ParameterValidationResult> {
+  // Fetch all parameter values for these companies
+  let parameterValues = await prisma.companyParameterValue.findMany({
+    where: {
+      companyId: { in: companyIds },
+      asOfDate: { lte: asOfDate }
+    },
+    include: { parameter: true },
+    orderBy: { asOfDate: 'desc' }
+  });
+
+  // Fallback: Get values for companies without any data (same logic as screening)
+  const companiesWithValues = new Set(parameterValues.map(pv => pv.companyId));
+  const companiesWithoutValues = companyIds.filter(id => !companiesWithValues.has(id));
+  
+  if (companiesWithoutValues.length > 0) {
+    const fallbackValues = await prisma.companyParameterValue.findMany({
+      where: {
+        companyId: { in: companiesWithoutValues }
+      },
+      include: { parameter: true },
+      orderBy: { asOfDate: 'desc' }
+    });
+    parameterValues = [...parameterValues, ...fallbackValues];
+  }
+
+  // Build parameter map per company (track which parameters each company has)
+  const companyParamSets = new Map<string, Set<string>>();
+  
+  for (const companyId of companyIds) {
+    companyParamSets.set(companyId, new Set());
+  }
+
+  for (const pv of parameterValues) {
+    const paramSet = companyParamSets.get(pv.companyId);
+    if (paramSet) {
+      paramSet.add(pv.parameter.name);
+    }
+  }
+
+  // Check which companies are missing which parameters
+  const companyIssues: CompanyMissingParameters[] = [];
+  const globalMissingParams = new Set<string>(requiredParameters);
+  let companiesWithCompleteData = 0;
+
+  for (const companyId of companyIds) {
+    const availableParams = companyParamSets.get(companyId) || new Set();
+    const missingParams: string[] = [];
+
+    for (const requiredParam of requiredParameters) {
+      if (!availableParams.has(requiredParam)) {
+        missingParams.push(requiredParam);
+      } else {
+        // If at least one company has this parameter, remove from global missing
+        globalMissingParams.delete(requiredParam);
+      }
+    }
+
+    if (missingParams.length > 0) {
+      companyIssues.push({
+        companyId,
+        companyName: companyNameMap.get(companyId) || 'Unknown',
+        missingParameters: missingParams
+      });
+    } else {
+      companiesWithCompleteData++;
+    }
+  }
+
+  // Sort company issues by number of missing parameters (most issues first)
+  companyIssues.sort((a, b) => b.missingParameters.length - a.missingParameters.length);
+
+  return {
+    isValid: companyIssues.length === 0,
+    totalCompanies: companyIds.length,
+    companiesWithCompleteData,
+    companiesWithMissingData: companyIssues.length,
+    requiredParameters,
+    missingParameters: Array.from(globalMissingParams),
+    companyIssues
+  };
+}
+
 interface ScreeningInput {
   portfolioId: string;
   criteriaSetId: string;
@@ -187,7 +508,10 @@ export async function screenPortfolio(input: ScreeningInput) {
 
     for (const rule of criteriaSet.rules) {
       const expression = JSON.parse(rule.expression) as RuleExpression;
-      const passed = evaluateExpression(expression, paramMap);
+      // Expression describes the VIOLATION condition (problematic range)
+      // If expression is TRUE, the rule is violated (not passed)
+      const violated = evaluateExpression(expression, paramMap);
+      const passed = !violated;
 
       // Get actual value and threshold for display (works for all rules, passed or failed)
       const { actualValue, threshold } = getActualValue(expression, paramMap);
@@ -304,13 +628,19 @@ export async function getScreeningResults(filters: {
     include: {
       portfolio: { include: { client: true } },
       criteriaSet: true,
-      user: { select: { id: true, name: true, email: true } }
+      user: { select: { id: true, name: true, email: true } },
+      companyResults: { include: { company: true } }  // Include company results for weight calculations
     }
   });
 
   return results.map((r) => ({
     ...r,
-    summary: JSON.parse(r.summary)
+    summary: JSON.parse(r.summary),
+    // Parse ruleResults JSON for each company result
+    companyResults: r.companyResults.map((cr) => ({
+      ...cr,
+      ruleResults: JSON.parse(cr.ruleResults)
+    }))
   }));
 }
 
@@ -438,7 +768,10 @@ export async function screenIndividualCompany(input: IndividualCompanyScreeningI
 
   for (const rule of criteriaSet.rules) {
     const expression = JSON.parse(rule.expression) as RuleExpression;
-    const passed = evaluateExpression(expression, paramMap);
+    // Expression describes the VIOLATION condition (problematic range)
+    // If expression is TRUE, the rule is violated (not passed)
+    const violated = evaluateExpression(expression, paramMap);
+    const passed = !violated;
 
     // Get actual value and threshold for display
     const { actualValue, threshold } = getActualValue(expression, paramMap);
@@ -568,7 +901,10 @@ export async function screenMultipleCompanies(input: MultipleCompaniesScreeningI
 
     for (const rule of criteriaSet.rules) {
       const expression = JSON.parse(rule.expression) as RuleExpression;
-      const passed = evaluateExpression(expression, paramMap);
+      // Expression describes the VIOLATION condition (problematic range)
+      // If expression is TRUE, the rule is violated (not passed)
+      const violated = evaluateExpression(expression, paramMap);
+      const passed = !violated;
 
       // Get actual value and threshold for display
       const { actualValue, threshold } = getActualValue(expression, paramMap);
@@ -714,7 +1050,10 @@ export async function screenBySector(input: SectorScreeningInput) {
 
     for (const rule of criteriaSet.rules) {
       const expression = JSON.parse(rule.expression) as RuleExpression;
-      const passed = evaluateExpression(expression, paramMap);
+      // Expression describes the VIOLATION condition (problematic range)
+      // If expression is TRUE, the rule is violated (not passed)
+      const violated = evaluateExpression(expression, paramMap);
+      const passed = !violated;
 
       // Get actual value and threshold for display
       const { actualValue, threshold } = getActualValue(expression, paramMap);
@@ -864,7 +1203,10 @@ export async function screenByRegion(input: RegionScreeningInput) {
 
     for (const rule of criteriaSet.rules) {
       const expression = JSON.parse(rule.expression) as RuleExpression;
-      const passed = evaluateExpression(expression, paramMap);
+      // Expression describes the VIOLATION condition (problematic range)
+      // If expression is TRUE, the rule is violated (not passed)
+      const violated = evaluateExpression(expression, paramMap);
+      const passed = !violated;
 
       // Get actual value and threshold for display
       const { actualValue, threshold } = getActualValue(expression, paramMap);
@@ -1028,7 +1370,10 @@ export async function screenWithCustomCriteria(input: CustomCriteriaScreeningInp
 
     for (const rule of criteriaSet.rules) {
       const expression = JSON.parse(rule.expression) as RuleExpression;
-      const passed = evaluateExpression(expression, paramMap);
+      // Expression describes the VIOLATION condition (problematic range)
+      // If expression is TRUE, the rule is violated (not passed)
+      const violated = evaluateExpression(expression, paramMap);
+      const passed = !violated;
 
       // Get actual value and threshold for display
       const { actualValue, threshold } = getActualValue(expression, paramMap);

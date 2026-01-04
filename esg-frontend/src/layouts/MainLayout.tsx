@@ -2,7 +2,7 @@ import React from 'react';
 import { Outlet, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Disclosure } from '@headlessui/react';
-import { Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
+import { Bars3Icon, XMarkIcon, Cog6ToothIcon, BuildingOfficeIcon } from '@heroicons/react/24/outline';
 
 const navigation = [
   { name: 'Results', href: '/run-screening' },
@@ -56,9 +56,25 @@ const MainLayout: React.FC = () => {
                           {user?.email}
                         </span>
                         {isAdmin && (
-                          <span className="bg-gold-500 text-white text-xs font-medium mr-2 px-2 py-0.5 rounded">
-                            Admin
-                          </span>
+                          <>
+                            <Link
+                              to="/clients"
+                              className="inline-flex items-center text-white hover:text-gray-300 text-sm font-medium mr-3"
+                            >
+                              <BuildingOfficeIcon className="h-5 w-5 mr-1" />
+                              Clients
+                            </Link>
+                            <Link
+                              to="/admin"
+                              className="inline-flex items-center text-white hover:text-gray-300 text-sm font-medium mr-3"
+                            >
+                              <Cog6ToothIcon className="h-5 w-5 mr-1" />
+                              Admin
+                            </Link>
+                            <span className="bg-gold-500 text-white text-xs font-medium mr-2 px-2 py-0.5 rounded">
+                              Admin
+                            </span>
+                          </>
                         )}
                         <button
                           onClick={handleLogout}

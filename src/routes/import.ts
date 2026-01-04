@@ -150,6 +150,8 @@ router.post(
  * 
  * Validate a CSV file without actually importing it.
  * Useful for previewing what will be imported and checking for errors.
+ * Now includes parameter analysis showing which columns will map to existing
+ * parameters vs. which will create new ESG parameters during import.
  * 
  * Form data:
  * - file: The CSV file to validate
@@ -159,6 +161,9 @@ router.post(
  * - rowCount: Number of data rows found
  * - columns: List of column names in the file
  * - errors: Any validation errors found
+ * - parameterAnalysis: Analysis of CSV columns vs existing parameters
+ *   - existingParameters: Columns that map to existing parameters [{name, id, dataType, csvColumnName}]
+ *   - newParameters: Columns that will create new parameters [{name, inferredType, sampleValues}]
  */
 router.post(
   '/validate',

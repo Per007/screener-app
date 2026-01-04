@@ -41,6 +41,85 @@ const customCriteriaScreenSchema = z.object({
   asOfDate: z.string().datetime().optional()
 });
 
+// Validation schemas
+const validatePortfolioSchema = z.object({
+  portfolioId: z.string().uuid(),
+  criteriaSetId: z.string().uuid(),
+  asOfDate: z.string().datetime().optional()
+});
+
+const validateCompaniesSchema = z.object({
+  companyIds: z.array(z.string().uuid()),
+  criteriaSetId: z.string().uuid(),
+  asOfDate: z.string().datetime().optional()
+});
+
+// =============================================================================
+// Validation Endpoints - Call these BEFORE running a screening
+// =============================================================================
+
+/**
+ * POST /screen/validate
+ * Validates that all parameters required by the criteria set are available
+ * for all companies in the portfolio. Call this before running a screening
+ * to catch missing data issues early.
+ * 
+ * Request body:
+ *   - portfolioId: UUID of the portfolio to validate
+ *   - criteriaSetId: UUID of the criteria set to validate against
+ *   - asOfDate: (optional) Date to use for parameter value lookups
+ * 
+ * Response:
+ *   - isValid: boolean - true if all required parameters are available
+ *   - totalCompanies: number - total companies in portfolio
+ *   - companiesWithCompleteData: number - companies with all required parameters
+ *   - companiesWithMissingData: number - companies missing at least one parameter
+ *   - requiredParameters: string[] - all parameters needed by the rules
+ *   - missingParameters: string[] - parameters with no data at all
+ *   - companyIssues: array of { companyId, companyName, missingParameters }
+ */
+router.post('/screen/validate', authenticate, async (req: AuthRequest, res: Response, next) => {
+  try {
+    const data = validatePortfolioSchema.parse(req.body);
+    const result = await screeningService.validatePortfolioParameters({
+      portfolioId: data.portfolioId,
+      criteriaSetId: data.criteriaSetId,
+      asOfDate: data.asOfDate ? new Date(data.asOfDate) : undefined
+    });
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /screen/validate/companies
+ * Validates that all parameters required by the criteria set are available
+ * for a specific set of companies.
+ * 
+ * Request body:
+ *   - companyIds: array of company UUIDs to validate
+ *   - criteriaSetId: UUID of the criteria set to validate against
+ *   - asOfDate: (optional) Date to use for parameter value lookups
+ */
+router.post('/screen/validate/companies', authenticate, async (req: AuthRequest, res: Response, next) => {
+  try {
+    const data = validateCompaniesSchema.parse(req.body);
+    const result = await screeningService.validateCompaniesParameters({
+      companyIds: data.companyIds,
+      criteriaSetId: data.criteriaSetId,
+      asOfDate: data.asOfDate ? new Date(data.asOfDate) : undefined
+    });
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// =============================================================================
+// Screening Endpoints
+// =============================================================================
+
 // Screen a portfolio
 router.post('/screen', authenticate, async (req: AuthRequest, res: Response, next) => {
   try {

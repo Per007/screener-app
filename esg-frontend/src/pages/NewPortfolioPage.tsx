@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiService } from '../api/apiService';
 import { useAuth } from '../context/AuthContext';
-import { XMarkIcon, DocumentArrowUpIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, DocumentArrowUpIcon, ArrowDownTrayIcon, CheckCircleIcon, PlusCircleIcon } from '@heroicons/react/24/outline';
 
 /**
  * Interface for CSV preview data
@@ -11,6 +11,33 @@ interface CSVPreviewData {
   headers: string[];
   rows: string[][];
   totalRows: number;
+}
+
+/**
+ * Interface for existing parameter info from validation
+ */
+interface ExistingParameterInfo {
+  name: string;
+  id: string;
+  dataType: string;
+  csvColumnName: string;
+}
+
+/**
+ * Interface for new parameter info from validation
+ */
+interface NewParameterInfo {
+  name: string;
+  inferredType: 'number' | 'boolean' | 'string';
+  sampleValues: (string | number | boolean)[];
+}
+
+/**
+ * Interface for parameter analysis in validation result
+ */
+interface ParameterAnalysis {
+  existingParameters: ExistingParameterInfo[];
+  newParameters: NewParameterInfo[];
 }
 
 /**
@@ -25,6 +52,7 @@ interface ValidationResult {
     errors: string[];
     warnings: string[];
   }>;
+  parameterAnalysis?: ParameterAnalysis;
   message?: string;
 }
 
@@ -595,6 +623,80 @@ const NewPortfolioPage: React.FC = () => {
                     </div>
                   )}
 
+                  {/* Parameter Mapping Preview - Shows after validation */}
+                  {validationResult?.parameterAnalysis && (
+                    validationResult.parameterAnalysis.existingParameters.length > 0 ||
+                    validationResult.parameterAnalysis.newParameters.length > 0
+                  ) && (
+                    <div className="border border-gray-200 rounded-lg overflow-hidden">
+                      <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
+                        <h3 className="text-sm font-medium text-gray-700">
+                          ESG Parameter Mapping Preview
+                        </h3>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Shows which CSV columns will map to existing parameters or create new ones
+                        </p>
+                      </div>
+                      <div className="divide-y divide-gray-100">
+                        {/* Existing Parameters */}
+                        {validationResult.parameterAnalysis.existingParameters.map((param, idx) => (
+                          <div key={`existing-${idx}`} className="px-4 py-3 flex items-start">
+                            <CheckCircleIcon className="h-5 w-5 text-green-500 mr-3 mt-0.5 flex-shrink-0" />
+                            <div className="flex-1">
+                              <div className="flex items-center">
+                                <span className="font-medium text-gray-900">{param.name}</span>
+                                <span className="ml-2 px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-800">
+                                  existing
+                                </span>
+                                <span className="ml-2 text-xs text-gray-500">
+                                  ({param.dataType})
+                                </span>
+                              </div>
+                              {param.csvColumnName !== param.name && (
+                                <p className="text-xs text-gray-500 mt-1">
+                                  CSV column: "{param.csvColumnName}"
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                        
+                        {/* New Parameters */}
+                        {validationResult.parameterAnalysis.newParameters.map((param, idx) => (
+                          <div key={`new-${idx}`} className="px-4 py-3 flex items-start bg-blue-50">
+                            <PlusCircleIcon className="h-5 w-5 text-blue-500 mr-3 mt-0.5 flex-shrink-0" />
+                            <div className="flex-1">
+                              <div className="flex items-center">
+                                <span className="font-medium text-gray-900">{param.name}</span>
+                                <span className="ml-2 px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+                                  NEW
+                                </span>
+                                <span className="ml-2 text-xs text-gray-500">
+                                  (inferred: {param.inferredType})
+                                </span>
+                              </div>
+                              {param.sampleValues.length > 0 && (
+                                <p className="text-xs text-gray-500 mt-1">
+                                  Sample values: {param.sampleValues.map(v => String(v)).join(', ')}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      
+                      {/* Summary */}
+                      {validationResult.parameterAnalysis.newParameters.length > 0 && (
+                        <div className="px-4 py-3 bg-blue-50 border-t border-blue-100">
+                          <p className="text-sm text-blue-700">
+                            <strong>{validationResult.parameterAnalysis.newParameters.length}</strong> new ESG parameter{validationResult.parameterAnalysis.newParameters.length !== 1 ? 's' : ''} will be created during import.
+                            These parameters can then be used in rules and criteria sets.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Import Result */}
                   {importResult && (
                     <div className={`p-4 rounded-lg ${importResult.success ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
@@ -618,6 +720,17 @@ const NewPortfolioPage: React.FC = () => {
                           <div>Parameters: {importResult.summary.parametersCreated} new</div>
                           <div>Holdings: {importResult.summary.holdingsCreated}</div>
                           <div>Rows: {importResult.summary.successfulRows}/{importResult.summary.totalRows}</div>
+                        </div>
+                      )}
+                      {/* Display warnings (e.g., weight normalization notice) */}
+                      {importResult.warnings && importResult.warnings.length > 0 && (
+                        <div className="mt-3 p-2 bg-yellow-50 border border-yellow-200 rounded">
+                          <p className="text-sm font-medium text-yellow-800">Notes:</p>
+                          <ul className="mt-1 text-sm text-yellow-700 list-disc list-inside">
+                            {importResult.warnings.map((warning, idx) => (
+                              <li key={idx}>{warning}</li>
+                            ))}
+                          </ul>
                         </div>
                       )}
                     </div>

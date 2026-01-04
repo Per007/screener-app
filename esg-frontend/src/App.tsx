@@ -19,6 +19,8 @@ import MultipleCompaniesScreening from './pages/screening/MultipleCompaniesScree
 import SectorScreening from './pages/screening/SectorScreening';
 import RegionScreening from './pages/screening/RegionScreening';
 import CustomScreening from './pages/screening/CustomScreening';
+import AdminPage from './pages/AdminPage';
+import ClientsPage from './pages/ClientsPage';
 
 const App: React.FC = () => {
   const { isAuthenticated, loading } = useAuth();
@@ -57,6 +59,8 @@ const App: React.FC = () => {
           <Route path="/screening-tools/region" element={<RegionScreening />} />
           <Route path="/screening-tools/custom" element={<CustomScreening />} />
           <Route path="/reports" element={<ReportsPage />} />
+          <Route path="/admin" element={<AdminPage />} />
+          <Route path="/clients" element={<ClientsPage />} />
         </Route>
       )}
       <Route path="*" element={<Navigate to={isAuthenticated ? "/portfolios" : "/login"} replace />} />

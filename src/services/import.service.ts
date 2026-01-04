@@ -19,7 +19,10 @@ import {
   ImportRow, 
   ImportResult, 
   ImportOptions, 
-  RowValidationResult 
+  RowValidationResult,
+  ParameterAnalysis,
+  ExistingParameterInfo,
+  NewParameterInfo
 } from '../models/types';
 
 // Reserved column names that are NOT parameter values
@@ -98,6 +101,124 @@ function inferDataType(values: (string | number | boolean)[]): 'number' | 'boole
   
   // Default to string
   return 'string';
+}
+
+/**
+ * Normalizes a parameter name for matching purposes
+ * This allows matching "ESG Score" with "esg_score" or "ESG_Score", etc.
+ * Also handles special characters and common abbreviations.
+ */
+function normalizeForMatching(name: string): string {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/%/g, '_pct')     // Replace % with _pct for matching
+    .replace(/\s+/g, '_')      // Replace spaces with underscores
+    .replace(/[^a-z0-9_]/g, '') // Remove remaining special characters
+    .replace(/_+/g, '_')       // Collapse multiple underscores
+    .replace(/^_|_$/g, '');    // Remove leading/trailing underscores
+}
+
+/**
+ * Analyzes CSV columns to determine which are existing parameters vs new parameters
+ * that will be created during import.
+ * 
+ * This function compares the CSV column names against existing parameters in the database
+ * and returns a detailed analysis showing:
+ * - existingParameters: Columns that match existing parameters (will map to them)
+ * - newParameters: Columns that don't match any existing parameter (will be created)
+ * 
+ * @param fileBuffer - The CSV file content as a Buffer
+ * @returns ParameterAnalysis with existing and new parameter details
+ */
+export async function analyzeParameterColumns(
+  fileBuffer: Buffer
+): Promise<ParameterAnalysis> {
+  // Parse the CSV file to get columns and sample values
+  const records = parse(fileBuffer, {
+    columns: true,
+    skip_empty_lines: true,
+    trim: true,
+    bom: true,
+    relax_column_count: true
+  }) as Record<string, string>[];
+  
+  // Get column names from first record
+  const columns = records.length > 0 ? Object.keys(records[0]) : [];
+  
+  // Filter to only parameter columns (exclude reserved columns like Company Name, Ticker, etc.)
+  const parameterColumns = columns.filter(col => {
+    const normalized = normalizeColumnName(col);
+    return !isReservedColumn(normalized) && normalized !== 'weight';
+  });
+  
+  // Fetch all existing parameters from database
+  const existingParams = await prisma.parameter.findMany({
+    select: { id: true, name: true, dataType: true }
+  });
+  
+  // Create multiple lookup maps for flexible matching:
+  // 1. Exact lowercase match
+  // 2. Normalized match (handles spaces, special chars)
+  const exactMatchMap = new Map<string, { id: string; name: string; dataType: string }>();
+  const normalizedMatchMap = new Map<string, { id: string; name: string; dataType: string }>();
+  
+  for (const param of existingParams) {
+    // Store exact lowercase version
+    exactMatchMap.set(param.name.toLowerCase(), param);
+    // Store normalized version for fuzzy matching
+    normalizedMatchMap.set(normalizeForMatching(param.name), param);
+  }
+  
+  const existingParameters: ExistingParameterInfo[] = [];
+  const newParameters: NewParameterInfo[] = [];
+  
+  for (const columnName of parameterColumns) {
+    // Try multiple matching strategies:
+    // 1. Exact case-insensitive match
+    // 2. Normalized match (handles "ESG Score" matching "esg_score")
+    let matchingParam = exactMatchMap.get(columnName.toLowerCase());
+    
+    if (!matchingParam) {
+      matchingParam = normalizedMatchMap.get(normalizeForMatching(columnName));
+    }
+    
+    if (matchingParam) {
+      // This column will map to an existing parameter
+      existingParameters.push({
+        name: matchingParam.name,
+        id: matchingParam.id,
+        dataType: matchingParam.dataType,
+        csvColumnName: columnName
+      });
+    } else {
+      // This column will create a new parameter
+      // Collect sample values to infer the data type
+      const sampleValues: (string | number | boolean)[] = [];
+      
+      // Get up to 5 sample values from the data
+      for (let i = 0; i < Math.min(records.length, 5); i++) {
+        const rawValue = records[i][columnName];
+        if (rawValue && rawValue.trim() !== '') {
+          sampleValues.push(parseValue(rawValue));
+        }
+      }
+      
+      // Infer the data type from sample values
+      const inferredType = inferDataType(sampleValues);
+      
+      newParameters.push({
+        name: columnName,
+        inferredType,
+        sampleValues: sampleValues.slice(0, 3) // Show up to 3 samples in the preview
+      });
+    }
+  }
+  
+  return {
+    existingParameters,
+    newParameters
+  };
 }
 
 /**
@@ -419,7 +540,11 @@ export async function importPortfolioFromCSV(
     result.portfolioId = portfolio.id;
     result.portfolioName = portfolio.name;
     
-    // Step 9: Create portfolio holdings
+    // Step 9: Create portfolio holdings with weight normalization
+    // First, collect all holdings and calculate total weight
+    const holdingsToCreate: Array<{ companyId: string; weight: number }> = [];
+    let totalWeight = 0;
+    
     for (const row of validRows) {
       if (!row.data) continue;
       
@@ -431,18 +556,40 @@ export async function importPortfolioFromCSV(
         continue;
       }
       
-      // Default weight to 0 if not provided
       // Convert weight to number, handling all possible types from ImportRow
+      // Default weight to 1 if not provided (for equal weighting when normalizing)
       const weightValue = row.data.weight;
       const weight = typeof weightValue === 'number' 
         ? weightValue 
-        : (weightValue ? Number(weightValue) : 0);
+        : (weightValue ? Number(weightValue) : 1);
+      
+      holdingsToCreate.push({ companyId, weight });
+      totalWeight += weight;
+    }
+    
+    // Step 10: Normalize weights to sum to 100% and create holdings
+    // This ensures the sum of weights always equals 100%, making excluded weight 
+    // calculations meaningful and never exceeding 100%
+    
+    // Add warning if weights were normalized
+    if (totalWeight > 0 && Math.abs(totalWeight - 100) > 0.01) {
+      result.warnings.push(
+        `Weights have been rescaled to sum to 100%. Original total was ${totalWeight.toFixed(2)}%.`
+      );
+    }
+    
+    for (const holding of holdingsToCreate) {
+      // Calculate normalized weight: (individual weight / total weight) * 100
+      // If totalWeight is 0, distribute equally among all holdings
+      const normalizedWeight = totalWeight > 0 
+        ? (holding.weight / totalWeight) * 100 
+        : (100 / holdingsToCreate.length);
       
       await prisma.portfolioHolding.create({
         data: {
           portfolioId: portfolio.id,
-          companyId,
-          weight
+          companyId: holding.companyId,
+          weight: normalizedWeight
         }
       });
       result.summary.holdingsCreated++;
@@ -465,12 +612,26 @@ export async function importPortfolioFromCSV(
 }
 
 /**
+ * Result of CSV validation including parameter analysis
+ */
+export interface ValidationWithAnalysis {
+  isValid: boolean;
+  rowCount: number;
+  columns: string[];
+  errors: RowValidationResult[];
+  parameterAnalysis: ParameterAnalysis;
+}
+
+/**
  * Validates a CSV file without actually importing it
  * Useful for preview/dry-run functionality
+ * 
+ * Now includes parameter analysis showing which columns will map to existing
+ * parameters vs. which will create new parameters during import.
  */
 export async function validatePortfolioCSV(
   fileBuffer: Buffer
-): Promise<{ isValid: boolean; rowCount: number; columns: string[]; errors: RowValidationResult[] }> {
+): Promise<ValidationWithAnalysis> {
   try {
     const records = parse(fileBuffer, {
       columns: true,
@@ -493,11 +654,15 @@ export async function validatePortfolioCSV(
       }
     }
     
+    // Analyze parameter columns - compare against existing parameters in database
+    const parameterAnalysis = await analyzeParameterColumns(fileBuffer);
+    
     return {
       isValid: errors.length === 0,
       rowCount: records.length,
       columns,
-      errors
+      errors,
+      parameterAnalysis
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Failed to parse CSV';
@@ -510,7 +675,11 @@ export async function validatePortfolioCSV(
         isValid: false,
         errors: [errorMessage],
         warnings: []
-      }]
+      }],
+      parameterAnalysis: {
+        existingParameters: [],
+        newParameters: []
+      }
     };
   }
 }

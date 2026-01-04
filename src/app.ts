@@ -12,6 +12,7 @@ import parameterRoutes from './routes/parameters';
 import criteriaSetRoutes from './routes/criteria-sets';
 import screeningRoutes from './routes/screening';
 import importRoutes from './routes/import';
+import adminRoutes from './routes/admin';
 
 const app = express();
 
@@ -39,6 +40,7 @@ app.use('/parameters', parameterRoutes);
 app.use('/criteria-sets', criteriaSetRoutes);
 app.use('/', screeningRoutes); // Handles /screen and /screening-results
 app.use('/import', importRoutes); // Handles /import/portfolios/:clientId, /import/validate, /import/template
+app.use('/admin', adminRoutes); // Handles /admin/stats, /admin/reset, /admin/* delete endpoints (admin only)
 
 // Error handling
 app.use(errorHandler);

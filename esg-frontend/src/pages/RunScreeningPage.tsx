@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { apiService } from '../api/apiService';
 import { exportScreeningResultsToCSV } from '../utils/exportUtils';
 
@@ -110,6 +111,23 @@ interface HistoricalResult {
 }
 
 /**
+ * Interface for parameter validation result
+ */
+interface ValidationResult {
+  isValid: boolean;
+  totalCompanies: number;
+  companiesWithCompleteData: number;
+  companiesWithMissingData: number;
+  requiredParameters: string[];
+  missingParameters: string[];
+  companyIssues: Array<{
+    companyId: string;
+    companyName: string;
+    missingParameters: string[];
+  }>;
+}
+
+/**
  * RunScreeningPage Component
  * 
  * A streamlined page for running ESG screenings with tabs for:
@@ -117,8 +135,12 @@ interface HistoricalResult {
  * - Run Screening: Execute new screenings
  */
 const RunScreeningPage: React.FC = () => {
-  // Tab state
-  const [activeTab, setActiveTab] = useState<'results' | 'run'>('results');
+  // URL search params for pre-selecting portfolio
+  const [searchParams] = useSearchParams();
+  const portfolioIdFromUrl = searchParams.get('portfolioId');
+
+  // Tab state - start on 'run' tab if portfolioId is in URL
+  const [activeTab, setActiveTab] = useState<'results' | 'run'>(portfolioIdFromUrl ? 'run' : 'results');
 
   // Data state
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
@@ -148,6 +170,11 @@ const RunScreeningPage: React.FC = () => {
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
   const [screeningToDelete, setScreeningToDelete] = useState<string | null>(null);
 
+  // Validation state
+  const [validating, setValidating] = useState(false);
+  const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
+  const [showValidationModal, setShowValidationModal] = useState(false);
+
   /**
    * Fetch portfolios and criteria sets on mount
    */
@@ -172,6 +199,19 @@ const RunScreeningPage: React.FC = () => {
 
     fetchData();
   }, []);
+
+  /**
+   * Pre-select portfolio from URL parameter if provided
+   */
+  useEffect(() => {
+    if (portfolioIdFromUrl && portfolios.length > 0) {
+      // Check if the portfolio exists in our list
+      const portfolioExists = portfolios.some(p => p.id === portfolioIdFromUrl);
+      if (portfolioExists) {
+        setSelectedPortfolioId(portfolioIdFromUrl);
+      }
+    }
+  }, [portfolioIdFromUrl, portfolios]);
 
   /**
    * Fetch historical results when Results tab is active
@@ -232,18 +272,50 @@ const RunScreeningPage: React.FC = () => {
   };
 
   /**
-   * Run the screening with selected portfolio and criteria set
+   * Validate parameters before running screening
    */
-  const handleRunScreening = async () => {
+  const handleValidateAndRun = async () => {
     if (!selectedPortfolioId || !selectedCriteriaSetId) {
       setError('Please select both a portfolio and a criteria set');
       return;
     }
 
     try {
+      setValidating(true);
+      setError(null);
+      
+      // First, validate parameter availability
+      const validation = await apiService.validatePortfolioScreening({
+        portfolioId: selectedPortfolioId,
+        criteriaSetId: selectedCriteriaSetId,
+      });
+      
+      setValidationResult(validation);
+      
+      if (!validation.isValid) {
+        // Show validation warning modal
+        setShowValidationModal(true);
+      } else {
+        // All parameters available, proceed with screening
+        await executeScreening();
+      }
+    } catch (err: any) {
+      setError(err.message || 'Validation failed. Please try again.');
+      console.error('Error validating screening:', err);
+    } finally {
+      setValidating(false);
+    }
+  };
+
+  /**
+   * Execute the actual screening (called after validation passes or user confirms)
+   */
+  const executeScreening = async () => {
+    try {
       setScreening(true);
       setError(null);
       setScreeningResult(null);
+      setShowValidationModal(false);
       
       const result = await apiService.screenPortfolioDirect({
         portfolioId: selectedPortfolioId,
@@ -262,6 +334,12 @@ const RunScreeningPage: React.FC = () => {
       setScreening(false);
     }
   };
+
+  /**
+   * Run the screening with selected portfolio and criteria set
+   * @deprecated Use handleValidateAndRun instead
+   */
+  const handleRunScreening = handleValidateAndRun;
 
   /**
    * Toggle expanded state for a company's detailed results
@@ -879,11 +957,19 @@ const RunScreeningPage: React.FC = () => {
             {/* Run Button */}
             <div className="mt-6">
               <button
-                onClick={handleRunScreening}
-                disabled={!selectedPortfolioId || !selectedCriteriaSetId || screening}
+                onClick={handleValidateAndRun}
+                disabled={!selectedPortfolioId || !selectedCriteriaSetId || screening || validating}
                 className="w-full md:w-auto px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-navy-600 hover:bg-navy-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-navy-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
               >
-                {screening ? (
+                {validating ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Validating Parameters...
+                  </>
+                ) : screening ? (
                   <>
                     <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -960,6 +1046,164 @@ const RunScreeningPage: React.FC = () => {
                 className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {deletingScreeningId !== null ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Validation Warning Modal */}
+      {showValidationModal && validationResult && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-10 mx-auto p-6 border max-w-2xl shadow-lg rounded-lg bg-white">
+            {/* Header */}
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+                  <svg className="w-6 h-6 text-amber-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Missing Parameter Data</h3>
+                  <p className="text-sm text-gray-500">
+                    {validationResult.companiesWithMissingData} of {validationResult.totalCompanies} companies are missing required parameters
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowValidationModal(false)}
+                className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Summary Stats */}
+            <div className="grid grid-cols-3 gap-4 mb-4">
+              <div className="bg-gray-50 rounded-lg p-3 text-center">
+                <div className="text-xl font-bold text-gray-900">{validationResult.totalCompanies}</div>
+                <div className="text-xs text-gray-500">Total Companies</div>
+              </div>
+              <div className="bg-green-50 rounded-lg p-3 text-center">
+                <div className="text-xl font-bold text-green-600">{validationResult.companiesWithCompleteData}</div>
+                <div className="text-xs text-green-700">Complete Data</div>
+              </div>
+              <div className="bg-amber-50 rounded-lg p-3 text-center">
+                <div className="text-xl font-bold text-amber-600">{validationResult.companiesWithMissingData}</div>
+                <div className="text-xs text-amber-700">Missing Data</div>
+              </div>
+            </div>
+
+            {/* Required Parameters */}
+            <div className="mb-4">
+              <h4 className="text-sm font-medium text-gray-700 mb-2">Required Parameters ({validationResult.requiredParameters.length})</h4>
+              <div className="flex flex-wrap gap-2">
+                {validationResult.requiredParameters.map((param) => (
+                  <span
+                    key={param}
+                    className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${
+                      validationResult.missingParameters.includes(param)
+                        ? 'bg-red-100 text-red-800'
+                        : 'bg-green-100 text-green-800'
+                    }`}
+                  >
+                    {validationResult.missingParameters.includes(param) ? '✗' : '✓'} {param}
+                  </span>
+                ))}
+              </div>
+              {validationResult.missingParameters.length > 0 && (
+                <p className="text-xs text-red-600 mt-1">
+                  Red parameters have no data for any company
+                </p>
+              )}
+            </div>
+
+            {/* Company Issues List */}
+            <div className="mb-4">
+              <h4 className="text-sm font-medium text-gray-700 mb-2">
+                Companies with Missing Data ({validationResult.companyIssues.length})
+              </h4>
+              <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50 sticky top-0">
+                    <tr>
+                      <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Company</th>
+                      <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Missing Parameters</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {validationResult.companyIssues.slice(0, 10).map((issue) => (
+                      <tr key={issue.companyId} className="hover:bg-gray-50">
+                        <td className="px-4 py-2 text-sm font-medium text-gray-900 whitespace-nowrap">
+                          {issue.companyName}
+                        </td>
+                        <td className="px-4 py-2 text-xs text-gray-500">
+                          <div className="flex flex-wrap gap-1">
+                            {issue.missingParameters.slice(0, 3).map((param) => (
+                              <span key={param} className="inline-flex items-center px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
+                                {param}
+                              </span>
+                            ))}
+                            {issue.missingParameters.length > 3 && (
+                              <span className="text-gray-400">+{issue.missingParameters.length - 3} more</span>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {validationResult.companyIssues.length > 10 && (
+                  <div className="px-4 py-2 bg-gray-50 text-xs text-gray-500 text-center border-t">
+                    And {validationResult.companyIssues.length - 10} more companies...
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Warning Message */}
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+              <div className="flex items-start gap-2">
+                <svg className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+                <div className="text-sm text-amber-800">
+                  <strong>If you proceed:</strong> Companies with missing data will fail rules that require those parameters. 
+                  Results will show "N/A" values and those rules will automatically fail.
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowValidationModal(false)}
+                className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+              >
+                Cancel & Fix Data
+              </button>
+              <button
+                onClick={executeScreening}
+                disabled={screening}
+                className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+              >
+                {screening ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Running...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    Run Anyway
+                  </>
+                )}
               </button>
             </div>
           </div>

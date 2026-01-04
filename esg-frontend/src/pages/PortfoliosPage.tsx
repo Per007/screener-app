@@ -187,12 +187,12 @@ const PortfoliosPage: React.FC = () => {
                           >
                             View
                           </Link>
-                          <button
-                            onClick={() => console.log('Screen portfolio', portfolio.id)}
+                          <Link
+                            to={`/run-screening?portfolioId=${portfolio.id}`}
                             className="text-navy-600 hover:text-navy-900"
                           >
                             Screen
-                          </button>
+                          </Link>
                         </td>
                       </tr>
                     ))

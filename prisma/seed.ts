@@ -95,13 +95,18 @@ async function main() {
 
   // Create companies
   const companies = [];
-  const companyNames = ['GreenTech Corp', 'OilCo Industries', 'CleanEnergy Inc', 'FastFashion Ltd', 'SustainableGoods Co'];
   const companyData = [
+    // Demo companies
     { name: 'GreenTech Corp', ticker: 'GTC', sector: 'Technology' },
     { name: 'OilCo Industries', ticker: 'OCI', sector: 'Energy' },
     { name: 'CleanEnergy Inc', ticker: 'CEI', sector: 'Utilities' },
     { name: 'FastFashion Ltd', ticker: 'FFL', sector: 'Consumer' },
-    { name: 'SustainableGoods Co', ticker: 'SGC', sector: 'Consumer' }
+    { name: 'SustainableGoods Co', ticker: 'SGC', sector: 'Consumer' },
+    // Real-world companies for testing
+    { name: 'Shell', ticker: 'SHEL', sector: 'Energy' },
+    { name: 'Microsoft Corp.', ticker: 'MSFT', sector: 'Technology' },
+    { name: 'ExxonMobil', ticker: 'XOM', sector: 'Energy' },
+    { name: 'Apple Inc.', ticker: 'AAPL', sector: 'Technology' }
   ];
 
   for (const data of companyData) {
@@ -178,28 +183,89 @@ async function main() {
         { companyId: companies[4].id, parameterId: parameters[4].id, value: '70', asOfDate }
       ]
     });
+
+    // Shell - Poor ESG (high emissions, energy sector)
+    await prisma.companyParameterValue.createMany({
+      data: [
+        { companyId: companies[5].id, parameterId: parameters[0].id, value: '8500', asOfDate },  // High carbon emissions
+        { companyId: companies[5].id, parameterId: parameters[1].id, value: '33', asOfDate },   // Meets diversity threshold
+        { companyId: companies[5].id, parameterId: parameters[2].id, value: 'true', asOfDate },  // Has env policy
+        { companyId: companies[5].id, parameterId: parameters[3].id, value: '"medium"', asOfDate }, // Medium controversies
+        { companyId: companies[5].id, parameterId: parameters[4].id, value: '12', asOfDate }    // Low renewable energy
+      ]
+    });
+
+    // Microsoft Corp. - Good ESG (tech leader in sustainability)
+    await prisma.companyParameterValue.createMany({
+      data: [
+        { companyId: companies[6].id, parameterId: parameters[0].id, value: '120', asOfDate },  // Low carbon emissions
+        { companyId: companies[6].id, parameterId: parameters[1].id, value: '42', asOfDate },   // Good diversity
+        { companyId: companies[6].id, parameterId: parameters[2].id, value: 'true', asOfDate },  // Has env policy
+        { companyId: companies[6].id, parameterId: parameters[3].id, value: '"none"', asOfDate }, // No controversies
+        { companyId: companies[6].id, parameterId: parameters[4].id, value: '100', asOfDate }   // 100% renewable energy commitment
+      ]
+    });
+
+    // ExxonMobil - Poor ESG (high emissions, controversies)
+    await prisma.companyParameterValue.createMany({
+      data: [
+        { companyId: companies[7].id, parameterId: parameters[0].id, value: '12000', asOfDate }, // Very high carbon emissions
+        { companyId: companies[7].id, parameterId: parameters[1].id, value: '27', asOfDate },   // Below diversity threshold
+        { companyId: companies[7].id, parameterId: parameters[2].id, value: 'true', asOfDate },  // Has env policy
+        { companyId: companies[7].id, parameterId: parameters[3].id, value: '"high"', asOfDate }, // High controversies
+        { companyId: companies[7].id, parameterId: parameters[4].id, value: '3', asOfDate }     // Very low renewable energy
+      ]
+    });
+
+    // Apple Inc. - Good ESG (strong sustainability focus)
+    await prisma.companyParameterValue.createMany({
+      data: [
+        { companyId: companies[8].id, parameterId: parameters[0].id, value: '85', asOfDate },   // Low carbon emissions
+        { companyId: companies[8].id, parameterId: parameters[1].id, value: '38', asOfDate },   // Good diversity
+        { companyId: companies[8].id, parameterId: parameters[2].id, value: 'true', asOfDate },  // Has env policy
+        { companyId: companies[8].id, parameterId: parameters[3].id, value: '"low"', asOfDate }, // Low controversies
+        { companyId: companies[8].id, parameterId: parameters[4].id, value: '100', asOfDate }   // 100% renewable for operations
+      ]
+    });
   } else {
     console.log('Parameter values already exist, skipping creation');
   }
   console.log('Added parameter values for all companies');
 
-  // Create portfolio
+  // Create portfolio with demo companies
   const portfolio = await prisma.portfolio.create({
     data: {
       clientId: client.id,
       name: 'Main Portfolio',
       holdings: {
         create: [
-          { companyId: companies[0].id },
-          { companyId: companies[1].id },
-          { companyId: companies[2].id },
-          { companyId: companies[3].id },
-          { companyId: companies[4].id }
+          { companyId: companies[0].id, weight: 20.0 },  // GreenTech Corp - 20%
+          { companyId: companies[1].id, weight: 25.0 },  // OilCo Industries - 25%
+          { companyId: companies[2].id, weight: 20.0 },  // CleanEnergy Inc - 20%
+          { companyId: companies[3].id, weight: 15.0 },  // FastFashion Ltd - 15%
+          { companyId: companies[4].id, weight: 20.0 }   // SustainableGoods Co - 20% (total 100%)
         ]
       }
     }
   });
   console.log('Created portfolio:', portfolio.name);
+
+  // Create portfolio with real-world companies
+  const realWorldPortfolio = await prisma.portfolio.create({
+    data: {
+      clientId: client.id,
+      name: 'Tech & Energy Portfolio',
+      holdings: {
+        create: [
+          { companyId: companies[5].id, weight: 25.0 },  // Shell - 25%
+          { companyId: companies[6].id, weight: 30.0 },  // Microsoft - 30%
+          { companyId: companies[7].id, weight: 20.0 },  // ExxonMobil - 20%
+          { companyId: companies[8].id, weight: 25.0 }   // Apple - 25% (total 100%)
+        ]
+      }
+    }
+  });
+  console.log('Created portfolio:', realWorldPortfolio.name);
 
   // Create criteria set with rules
   let criteriaSet = await prisma.criteriaSet.findFirst({ where: { name: 'Standard ESG Screen' } });
@@ -213,11 +279,11 @@ async function main() {
           create: [
             {
               name: 'Carbon Emissions Limit',
-              description: 'Companies must have carbon emissions below 500 tons/year',
+              description: 'Excluded if carbon emissions are above 500 tons/year',
               expression: JSON.stringify({
                 type: 'comparison',
                 parameter: 'carbon_emissions',
-                operator: '<',
+                operator: '>=',
                 value: 500
               }),
               failureMessage: 'Carbon emissions exceed acceptable limit',
@@ -225,11 +291,11 @@ async function main() {
             },
             {
               name: 'Board Diversity Minimum',
-              description: 'Companies must have at least 30% board diversity',
+              description: 'Excluded if board diversity is below 30%',
               expression: JSON.stringify({
                 type: 'comparison',
                 parameter: 'board_diversity_pct',
-                operator: '>=',
+                operator: '<',
                 value: 30
               }),
               failureMessage: 'Board diversity below minimum threshold',
@@ -237,23 +303,23 @@ async function main() {
             },
             {
               name: 'Environmental Policy Required',
-              description: 'Companies must have an environmental policy',
+              description: 'Warning if company has no environmental policy',
               expression: JSON.stringify({
                 type: 'comparison',
                 parameter: 'has_environmental_policy',
                 operator: '==',
-                value: true
+                value: false
               }),
               failureMessage: 'No environmental policy in place',
               severity: 'warn'
             },
             {
               name: 'No High Controversies',
-              description: 'Companies must not have high-level controversies',
+              description: 'Excluded if company has high-level controversies',
               expression: JSON.stringify({
                 type: 'comparison',
                 parameter: 'controversy_level',
-                operator: '!=',
+                operator: '==',
                 value: 'high'
               }),
               failureMessage: 'Company has high-level ESG controversies',

@@ -25,6 +25,7 @@ interface Portfolio {
       name: string;
       sector?: string;
     };
+    weight?: number;
   }>;
   createdAt: string;
   updatedAt: string;
@@ -86,6 +87,7 @@ const PortfolioDetailPage: React.FC = () => {
   const [deletingScreeningId, setDeletingScreeningId] = useState<string | null>(null);
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
   const [screeningToDelete, setScreeningToDelete] = useState<string | null>(null);
+  const [normalizingWeights, setNormalizingWeights] = useState(false);
 
   // Fetch companies for add holding modal
   useEffect(() => {
@@ -294,6 +296,28 @@ const PortfolioDetailPage: React.FC = () => {
     }
   };
 
+  // Handle normalize weights
+  const handleNormalizeWeights = async () => {
+    if (!id) return;
+
+    try {
+      setNormalizingWeights(true);
+      setError(null);
+      
+      const result = await apiService.normalizePortfolioWeights(id);
+      
+      // Update the portfolio with normalized weights
+      setPortfolio(result.portfolio);
+      
+      // Show success message (optional: could use a toast notification)
+      alert(`✓ ${result.message}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to normalize weights');
+    } finally {
+      setNormalizingWeights(false);
+    }
+  };
+
   // Filter companies based on search term
   const filteredCompanies = companies.filter(company => {
     if (!companySearchTerm) return true;
@@ -342,9 +366,15 @@ const PortfolioDetailPage: React.FC = () => {
     passRate: 0
   };
 
-  const statusColor = summary.failed > 0 ? 'red' : summary.passed === summary.totalHoldings ? 'green' : 'yellow';
-  const statusIcon = summary.failed > 0 ? '🔴' : summary.passed === summary.totalHoldings ? '🟢' : '🟡';
-  const statusText = summary.failed > 0 ? 'FAILED' : summary.passed === summary.totalHoldings ? 'PASSED' : 'WARNING';
+  // Calculate sum of weights excluded (for failed holdings)
+  const sumOfWeightsExcluded = latestScreening
+    ? latestScreening.results
+        .filter(r => !r.passed)
+        .reduce((sum, result) => {
+          const holding = portfolio.holdings?.find(h => h.company.id === result.company.id);
+          return sum + (holding?.weight || 0);
+        }, 0)
+    : 0;
 
   return (
     <div className="space-y-6">
@@ -416,36 +446,12 @@ const PortfolioDetailPage: React.FC = () => {
         <div className="bg-white overflow-hidden shadow rounded-lg">
           <div className="px-4 py-5 sm:p-6">
             <div className="flex items-center">
-              <div className={`flex-shrink-0 rounded-md p-3 ${
-                statusColor === 'red' ? 'bg-red-100' :
-                statusColor === 'green' ? 'bg-green-100' : 'bg-yellow-100'
-              }`}>
-                <div className={`h-6 w-6 ${
-                  statusColor === 'red' ? 'text-red-600' :
-                  statusColor === 'green' ? 'text-green-600' : 'text-yellow-600'
-                }`}>{statusIcon}</div>
-              </div>
-              <div className="ml-5 w-0 flex-1">
-                <dt className="text-sm font-medium text-gray-500 truncate">Overall Status</dt>
-                <dd className={`text-2xl font-semibold ${
-                  statusColor === 'red' ? 'text-red-900' :
-                  statusColor === 'green' ? 'text-green-900' : 'text-yellow-900'
-                }`}>{statusText}</dd>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white overflow-hidden shadow rounded-lg">
-          <div className="px-4 py-5 sm:p-6">
-            <div className="flex items-center">
               <div className="flex-shrink-0 bg-green-100 rounded-md p-3">
-                <div className="h-6 w-6 text-green-600">🟢</div>
+                <div className="h-6 w-6"></div>
               </div>
               <div className="ml-5 w-0 flex-1">
                 <dt className="text-sm font-medium text-gray-500 truncate">Holdings Passed</dt>
                 <dd className="text-2xl font-semibold text-gray-900">{summary.passed}</dd>
-                <dd className="text-sm text-gray-600">({summary.passRate}%)</dd>
               </div>
             </div>
           </div>
@@ -455,12 +461,25 @@ const PortfolioDetailPage: React.FC = () => {
           <div className="px-4 py-5 sm:p-6">
             <div className="flex items-center">
               <div className="flex-shrink-0 bg-red-100 rounded-md p-3">
-                <div className="h-6 w-6 text-red-600">🔴</div>
+                <div className="h-6 w-6"></div>
               </div>
               <div className="ml-5 w-0 flex-1">
                 <dt className="text-sm font-medium text-gray-500 truncate">Holdings Failed</dt>
                 <dd className="text-2xl font-semibold text-gray-900">{summary.failed}</dd>
-                <dd className="text-sm text-gray-600">({summary.totalHoldings > 0 ? Math.round((summary.failed / summary.totalHoldings) * 100) : 0}%)</dd>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white overflow-hidden shadow rounded-lg">
+          <div className="px-4 py-5 sm:p-6">
+            <div className="flex items-center">
+              <div className="flex-shrink-0 bg-orange-100 rounded-md p-3">
+                <div className="h-6 w-6"></div>
+              </div>
+              <div className="ml-5 w-0 flex-1">
+                <dt className="text-sm font-medium text-gray-500 truncate">Sum of Weights Excluded</dt>
+                <dd className="text-2xl font-semibold text-gray-900">{sumOfWeightsExcluded.toFixed(2)}%</dd>
               </div>
             </div>
           </div>
@@ -470,7 +489,7 @@ const PortfolioDetailPage: React.FC = () => {
           <div className="px-4 py-5 sm:p-6">
             <div className="flex items-center">
               <div className="flex-shrink-0 bg-blue-100 rounded-md p-3">
-                <div className="h-6 w-6 text-blue-600">📋</div>
+                <div className="h-6 w-6"></div>
               </div>
               <div className="ml-5 w-0 flex-1">
                 <dt className="text-sm font-medium text-gray-500 truncate">Criteria Set</dt>
@@ -896,13 +915,55 @@ const PortfolioDetailPage: React.FC = () => {
             <div>
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-medium text-gray-900">Portfolio Information</h2>
-                <button
-                  onClick={() => setShowAddHoldingModal(true)}
-                  className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-navy-600 hover:bg-navy-700"
-                >
-                  + Add Holding
-                </button>
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => setShowAddHoldingModal(true)}
+                    className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-navy-600 hover:bg-navy-700"
+                  >
+                    + Add Holding
+                  </button>
+                </div>
               </div>
+              
+              {/* Warning: Weights don't sum to 100% */}
+              {portfolio.holdings && portfolio.holdings.length > 0 && (() => {
+                const totalWeight = portfolio.holdings.reduce((sum, h) => sum + (h.weight || 0), 0);
+                const needsNormalization = Math.abs(totalWeight - 100) > 0.01;
+                
+                if (needsNormalization) {
+                  return (
+                    <div className="mb-4 bg-amber-50 border-l-4 border-amber-400 p-4">
+                      <div className="flex items-start">
+                        <div className="flex-shrink-0">
+                          <svg className="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                        <div className="ml-3 flex-1">
+                          <h3 className="text-sm font-medium text-amber-800">
+                            Weights do not sum to 100%
+                          </h3>
+                          <p className="mt-1 text-sm text-amber-700">
+                            Current total: <strong>{totalWeight.toFixed(2)}%</strong>. 
+                            Portfolio weights should sum to 100% for accurate "Sum of Weights Excluded" calculations.
+                          </p>
+                          <div className="mt-3">
+                            <button
+                              onClick={handleNormalizeWeights}
+                              disabled={normalizingWeights}
+                              className="px-3 py-1.5 border border-amber-600 rounded-md text-sm font-medium text-amber-700 bg-amber-100 hover:bg-amber-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {normalizingWeights ? 'Normalizing...' : 'Normalize Weights to 100%'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+              
               <div className="space-y-4">
                 <div>
                   <dt className="text-sm font-medium text-gray-500">Name</dt>
@@ -953,6 +1014,14 @@ const PortfolioDetailPage: React.FC = () => {
                               </tr>
                             ))}
                           </tbody>
+                          <tfoot className="bg-gray-50">
+                            <tr>
+                              <td className="px-4 py-3 text-sm font-medium text-gray-900">Total</td>
+                              <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                                {portfolio.holdings.reduce((sum, h) => sum + (h.weight || 0), 0).toFixed(2)}%
+                              </td>
+                            </tr>
+                          </tfoot>
                         </table>
                       </div>
                     </dd>
