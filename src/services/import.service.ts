@@ -301,7 +301,7 @@ export async function importPortfolioFromCSV(
     updateExistingValues: options.updateExistingValues ?? true,
     holdingsMode: options.holdingsMode ?? 'replace',
     asOfDate: options.asOfDate ?? new Date(),
-    source: options.source ?? 'csv-import'
+    source: options.source ?? ''
   };
   
   // Initialize result tracking

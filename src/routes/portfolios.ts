@@ -172,6 +172,140 @@ router.post('/clients/:clientId/portfolios', authenticate, async (req, res, next
   }
 });
 
+/**
+ * GET /portfolios/:id/holdings-with-parameters
+ * 
+ * Get all holdings in a portfolio with their parameter values.
+ * Returns a comprehensive view of each holding including all available parameter values.
+ * 
+ * Query parameters:
+ * - asOfDate (optional): Filter parameter values by date (ISO string)
+ * 
+ * NOTE: This route must be defined BEFORE /portfolios/:id to ensure proper matching
+ */
+router.get('/portfolios/:id/holdings-with-parameters', authenticate, async (req, res, next) => {
+  try {
+    const portfolioId = req.params.id;
+    const asOfDateParam = req.query.asOfDate as string | undefined;
+    const asOfDate = asOfDateParam ? new Date(asOfDateParam) : new Date();
+
+    // Get portfolio with holdings
+    const portfolio = await prisma.portfolio.findUnique({
+      where: { id: portfolioId },
+      include: {
+        holdings: {
+          include: {
+            company: {
+              include: {
+                parameterValues: {
+                  include: {
+                    parameter: true
+                  },
+                  orderBy: { asOfDate: 'desc' }
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!portfolio) {
+      throw new AppError('Portfolio not found', 404);
+    }
+
+    // Process holdings to get the most recent parameter values (respecting asOfDate if provided)
+    const holdingsWithParameters = portfolio.holdings.map(holding => {
+      const company = holding.company;
+      
+      // Group parameter values by parameter name, keeping only the most recent value
+      // that is <= asOfDate (or most recent overall if no date filter)
+      const parameterMap = new Map<string, {
+        value: any;
+        asOfDate: Date;
+        source?: string;
+        parameter: {
+          id: string;
+          name: string;
+          dataType: string;
+          unit?: string;
+          description?: string;
+        };
+      }>();
+
+      for (const pv of company.parameterValues) {
+        // If asOfDate filter is provided, only include values <= asOfDate
+        if (asOfDateParam && pv.asOfDate > asOfDate) {
+          continue;
+        }
+
+        const paramName = pv.parameter.name;
+        const existing = parameterMap.get(paramName);
+
+        // Keep the most recent value for each parameter
+        if (!existing || pv.asOfDate > existing.asOfDate) {
+          try {
+            // Parse JSON-encoded value
+            const parsedValue = JSON.parse(pv.value);
+            parameterMap.set(paramName, {
+              value: parsedValue,
+              asOfDate: pv.asOfDate,
+              source: pv.source || undefined,
+              parameter: {
+                id: pv.parameter.id,
+                name: pv.parameter.name,
+                dataType: pv.parameter.dataType,
+                unit: pv.parameter.unit || undefined,
+                description: pv.parameter.description || undefined
+              }
+            });
+          } catch (e) {
+            // If parsing fails, use the raw string value
+            parameterMap.set(paramName, {
+              value: pv.value,
+              asOfDate: pv.asOfDate,
+              source: pv.source || undefined,
+              parameter: {
+                id: pv.parameter.id,
+                name: pv.parameter.name,
+                dataType: pv.parameter.dataType,
+                unit: pv.parameter.unit || undefined,
+                description: pv.parameter.description || undefined
+              }
+            });
+          }
+        }
+      }
+
+      // Convert map to array
+      const parameters = Array.from(parameterMap.values());
+
+      return {
+        id: holding.id,
+        weight: holding.weight,
+        company: {
+          id: company.id,
+          name: company.name,
+          ticker: company.ticker,
+          sector: company.sector
+        },
+        parameters: parameters
+      };
+    });
+
+    res.json({
+      portfolio: {
+        id: portfolio.id,
+        name: portfolio.name
+      },
+      asOfDate: asOfDate.toISOString(),
+      holdings: holdingsWithParameters
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Get portfolio with holdings
 router.get('/portfolios/:id', authenticate, async (req, res, next) => {
   try {

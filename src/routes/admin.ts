@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
 import { authenticate, requireRole } from '../middleware/auth';
 import { AppError } from '../middleware/error-handler';
@@ -66,7 +66,7 @@ router.get('/stats', async (req, res, next) => {
  * Clear all screening results
  * DELETE /admin/screening-results
  */
-router.delete('/screening-results', async (req, res, next) => {
+router.delete('/screening-results', async (req: Request, res: Response, next: NextFunction) => {
   try {
     // ScreeningCompanyResult has onDelete: Cascade, so deleting ScreeningResult will cascade
     const result = await prisma.screeningResult.deleteMany();
@@ -83,7 +83,7 @@ router.delete('/screening-results', async (req, res, next) => {
  * Clear all company parameter values
  * DELETE /admin/parameter-values
  */
-router.delete('/parameter-values', async (req, res, next) => {
+router.delete('/parameter-values', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const result = await prisma.companyParameterValue.deleteMany();
     res.json({ 
@@ -99,7 +99,7 @@ router.delete('/parameter-values', async (req, res, next) => {
  * Clear all portfolios (and their holdings via cascade)
  * DELETE /admin/portfolios
  */
-router.delete('/portfolios', async (req, res, next) => {
+router.delete('/portfolios', async (req: Request, res: Response, next: NextFunction) => {
   try {
     // Holdings will be cascade deleted
     const result = await prisma.portfolio.deleteMany();
@@ -116,7 +116,7 @@ router.delete('/portfolios', async (req, res, next) => {
  * Clear all companies (and their parameter values, holdings, screening results via cascade)
  * DELETE /admin/companies
  */
-router.delete('/companies', async (req, res, next) => {
+router.delete('/companies', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const result = await prisma.company.deleteMany();
     res.json({ 
@@ -132,7 +132,7 @@ router.delete('/companies', async (req, res, next) => {
  * Clear all criteria sets (and their rules via cascade)
  * DELETE /admin/criteria-sets
  */
-router.delete('/criteria-sets', async (req, res, next) => {
+router.delete('/criteria-sets', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const result = await prisma.criteriaSet.deleteMany();
     res.json({ 
@@ -148,7 +148,7 @@ router.delete('/criteria-sets', async (req, res, next) => {
  * Clear all parameters (global and client-specific)
  * DELETE /admin/parameters
  */
-router.delete('/parameters', async (req, res, next) => {
+router.delete('/parameters', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const result = await prisma.parameter.deleteMany();
     res.json({ 
@@ -164,7 +164,7 @@ router.delete('/parameters', async (req, res, next) => {
  * Clear all client parameters (threshold settings)
  * DELETE /admin/client-parameters
  */
-router.delete('/client-parameters', async (req, res, next) => {
+router.delete('/client-parameters', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const result = await prisma.clientParameter.deleteMany();
     res.json({ 
@@ -180,7 +180,7 @@ router.delete('/client-parameters', async (req, res, next) => {
  * Clear all clients (and related data via cascade)
  * DELETE /admin/clients
  */
-router.delete('/clients', async (req, res, next) => {
+router.delete('/clients', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const result = await prisma.client.deleteMany();
     res.json({ 
@@ -196,7 +196,7 @@ router.delete('/clients', async (req, res, next) => {
  * Delete non-admin users
  * DELETE /admin/users
  */
-router.delete('/users', async (req, res, next) => {
+router.delete('/users', async (req: Request, res: Response, next: NextFunction) => {
   try {
     // Only delete non-admin users to prevent locking out all admins
     const result = await prisma.user.deleteMany({
@@ -218,7 +218,7 @@ router.delete('/users', async (req, res, next) => {
  * This is a dangerous operation that clears most data
  * DELETE /admin/reset
  */
-router.delete('/reset', async (req, res, next) => {
+router.delete('/reset', async (req: Request, res: Response, next: NextFunction) => {
   try {
     // Order matters due to foreign key constraints
     // Delete in order of dependencies (child tables first)

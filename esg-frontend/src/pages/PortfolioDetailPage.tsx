@@ -6,10 +6,11 @@ import {
   exportFailedHoldings, 
   exportAllHoldings, 
   exportScreeningHistory,
-  exportDetailedScreeningResult 
+  exportDetailedScreeningResult,
+  exportHoldingsWithParameters
 } from '../utils/exportUtils';
 
-type TabType = 'failed' | 'all' | 'history' | 'info';
+type TabType = 'failed' | 'all' | 'history' | 'info' | 'overview';
 
 interface Portfolio {
   id: string;
@@ -88,6 +89,10 @@ const PortfolioDetailPage: React.FC = () => {
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
   const [screeningToDelete, setScreeningToDelete] = useState<string | null>(null);
   const [normalizingWeights, setNormalizingWeights] = useState(false);
+  const [holdingsWithParameters, setHoldingsWithParameters] = useState<any>(null);
+  const [loadingHoldingsParams, setLoadingHoldingsParams] = useState(false);
+  const [holdingsParamsAsOfDate, setHoldingsParamsAsOfDate] = useState('');
+  const [holdingsParamsError, setHoldingsParamsError] = useState<string | null>(null);
 
   // Fetch companies for add holding modal
   useEffect(() => {
@@ -176,6 +181,31 @@ const PortfolioDetailPage: React.FC = () => {
       }
     }
   }, [latestScreening]);
+
+  // Fetch holdings with parameters when overview tab is active
+  useEffect(() => {
+    const fetchHoldingsWithParameters = async () => {
+      if (!id || activeTab !== 'overview') return;
+      
+      try {
+        setLoadingHoldingsParams(true);
+        setHoldingsParamsError(null);
+        const data = await apiService.getPortfolioHoldingsWithParameters(
+          id,
+          holdingsParamsAsOfDate || undefined
+        );
+        setHoldingsWithParameters(data);
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to fetch holdings with parameters';
+        setHoldingsParamsError(errorMessage);
+        console.error('Error fetching holdings with parameters:', err);
+      } finally {
+        setLoadingHoldingsParams(false);
+      }
+    };
+
+    fetchHoldingsWithParameters();
+  }, [id, activeTab, holdingsParamsAsOfDate]);
 
   // Close export menus when clicking outside
   useEffect(() => {
@@ -538,6 +568,16 @@ const PortfolioDetailPage: React.FC = () => {
               } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
             >
               Screening History
+            </button>
+            <button
+              onClick={() => setActiveTab('overview')}
+              className={`${
+                activeTab === 'overview'
+                  ? 'border-navy-500 text-navy-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+            >
+              Holdings Overview
             </button>
             <button
               onClick={() => setActiveTab('info')}
@@ -905,6 +945,254 @@ const PortfolioDetailPage: React.FC = () => {
                       ))}
                     </tbody>
                   </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Holdings Overview Tab */}
+          {activeTab === 'overview' && (
+            <div>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg font-medium text-gray-900">
+                  Holdings Overview with Parameters
+                </h2>
+                <div className="flex items-center space-x-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      As of Date (optional)
+                    </label>
+                    <input
+                      type="date"
+                      value={holdingsParamsAsOfDate}
+                      onChange={(e) => setHoldingsParamsAsOfDate(e.target.value)}
+                      className="text-sm border-gray-300 rounded-md px-3 py-1.5 focus:outline-none focus:ring-navy-500 focus:border-navy-500"
+                    />
+                  </div>
+                  {holdingsWithParameters && holdingsWithParameters.holdings.length > 0 && (
+                    <div className="relative export-menu-container">
+                      <button
+                        onClick={() => setOpenExportMenu(openExportMenu === 'overview' ? null : 'overview')}
+                        className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 flex items-center"
+                      >
+                        Export
+                        <ChevronDownIcon className="ml-2 h-4 w-4" />
+                      </button>
+                      {openExportMenu === 'overview' && (
+                        <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10 border border-gray-200">
+                          <div className="py-1">
+                            <button
+                              onClick={() => {
+                                if (!holdingsWithParameters) {
+                                  alert('No holdings data available. Please wait for data to load.');
+                                  return;
+                                }
+                                console.log('Exporting to Excel:', holdingsWithParameters);
+                                exportHoldingsWithParameters(holdingsWithParameters, 'excel', portfolio.name);
+                                setOpenExportMenu(null);
+                              }}
+                              className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                            >
+                              Export to Excel
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (!holdingsWithParameters) {
+                                  alert('No holdings data available. Please wait for data to load.');
+                                  return;
+                                }
+                                console.log('Exporting to CSV:', holdingsWithParameters);
+                                exportHoldingsWithParameters(holdingsWithParameters, 'csv', portfolio.name);
+                                setOpenExportMenu(null);
+                              }}
+                              className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                            >
+                              Export to CSV
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {loadingHoldingsParams ? (
+                <div className="flex justify-center items-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-navy-600"></div>
+                </div>
+              ) : holdingsParamsError ? (
+                <div className="bg-red-50 border-l-4 border-red-400 p-4">
+                  <div className="flex">
+                    <div className="ml-3">
+                      <p className="text-red-700 text-sm">{holdingsParamsError}</p>
+                      <button
+                        onClick={async () => {
+                          if (!id) return;
+                          setHoldingsParamsError(null);
+                          try {
+                            setLoadingHoldingsParams(true);
+                            const data = await apiService.getPortfolioHoldingsWithParameters(
+                              id,
+                              holdingsParamsAsOfDate || undefined
+                            );
+                            setHoldingsWithParameters(data);
+                          } catch (err) {
+                            const errorMessage = err instanceof Error ? err.message : 'Failed to fetch holdings with parameters';
+                            setHoldingsParamsError(errorMessage);
+                            console.error('Error fetching holdings with parameters:', err);
+                          } finally {
+                            setLoadingHoldingsParams(false);
+                          }
+                        }}
+                        className="text-red-600 hover:text-red-800 text-sm mt-2 underline"
+                      >
+                        Try again
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : holdingsWithParameters && holdingsWithParameters.holdings.length > 0 ? (
+                <div className="space-y-4">
+                  <div className="text-sm text-gray-600 mb-4">
+                    Showing {holdingsWithParameters.holdings.length} holdings
+                    {holdingsParamsAsOfDate && (
+                      <span> • As of: {new Date(holdingsParamsAsOfDate).toLocaleDateString()}</span>
+                    )}
+                    {holdingsWithParameters.asOfDate && (
+                      <span> • Portfolio snapshot: {new Date(holdingsWithParameters.asOfDate).toLocaleDateString()}</span>
+                    )}
+                  </div>
+                  
+                  {(() => {
+                    // Collect all unique parameter names across all holdings
+                    const allParameterNames = new Set<string>();
+                    holdingsWithParameters.holdings.forEach((holding: any) => {
+                      holding.parameters.forEach((param: any) => {
+                        allParameterNames.add(param.parameter.name);
+                      });
+                    });
+                    const parameterNames = Array.from(allParameterNames).sort();
+
+                    return (
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50 z-10">
+                                Company
+                              </th>
+                              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Ticker
+                              </th>
+                              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Sector
+                              </th>
+                              <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Weight (%)
+                              </th>
+                              {parameterNames.map((paramName) => (
+                                <th 
+                                  key={paramName} 
+                                  scope="col" 
+                                  className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[120px]"
+                                  title={paramName}
+                                >
+                                  <div className="truncate max-w-[150px]" title={paramName}>
+                                    {paramName}
+                                  </div>
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {holdingsWithParameters.holdings.map((holding: any) => {
+                              // Create a map of parameter values for quick lookup
+                              const paramMap = new Map<string, any>();
+                              holding.parameters.forEach((param: any) => {
+                                paramMap.set(param.parameter.name, param);
+                              });
+
+                              return (
+                                <tr key={holding.id} className="hover:bg-gray-50">
+                                  <td className="px-4 py-3 whitespace-nowrap sticky left-0 bg-white z-10">
+                                    <div className="text-sm font-medium text-gray-900">
+                                      <Link
+                                        to={`/companies/${holding.company.id}`}
+                                        className="text-navy-600 hover:text-navy-800"
+                                      >
+                                        {holding.company.name}
+                                      </Link>
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                                    {holding.company.ticker || 'N/A'}
+                                  </td>
+                                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                                    {holding.company.sector || 'N/A'}
+                                  </td>
+                                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 font-medium">
+                                    {holding.weight?.toFixed(2) || 'N/A'}%
+                                  </td>
+                                  {parameterNames.map((paramName) => {
+                                    const param = paramMap.get(paramName);
+                                    if (param) {
+                                      // Format the value based on type
+                                      let displayValue: string;
+                                      if (typeof param.value === 'boolean') {
+                                        displayValue = param.value ? 'Yes' : 'No';
+                                      } else {
+                                        displayValue = String(param.value);
+                                      }
+                                      
+                                      // Add unit if available
+                                      const valueWithUnit = param.parameter.unit 
+                                        ? `${displayValue} ${param.parameter.unit}`
+                                        : displayValue;
+
+                                      return (
+                                        <td 
+                                          key={paramName} 
+                                          className="px-4 py-3 whitespace-nowrap text-sm text-gray-900"
+                                          title={param.parameter.description || paramName}
+                                        >
+                                          <div className="truncate max-w-[200px]" title={valueWithUnit}>
+                                            {valueWithUnit}
+                                          </div>
+                                          {param.source && param.source !== 'csv-import' && (
+                                            <div className="text-xs text-gray-400 mt-0.5" title={`Source: ${param.source}`}>
+                                              {param.source}
+                                            </div>
+                                          )}
+                                        </td>
+                                      );
+                                    } else {
+                                      return (
+                                        <td 
+                                          key={paramName} 
+                                          className="px-4 py-3 whitespace-nowrap text-sm text-gray-400"
+                                        >
+                                          N/A
+                                        </td>
+                                      );
+                                    }
+                                  })}
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })()}
+                </div>
+              ) : holdingsWithParameters && holdingsWithParameters.holdings.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-gray-600">No holdings found in this portfolio.</p>
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <p className="text-gray-600">No data available. Please try refreshing the page.</p>
                 </div>
               )}
             </div>

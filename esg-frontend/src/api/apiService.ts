@@ -140,6 +140,48 @@ class ApiService {
   }> {
     return this.request({ method: 'POST', url: `/portfolios/${portfolioId}/normalize-weights` });
   }
+
+  /**
+   * Get all holdings in a portfolio with their parameter values
+   * @param portfolioId - Portfolio ID
+   * @param asOfDate - Optional date to filter parameter values (ISO string)
+   */
+  public async getPortfolioHoldingsWithParameters(
+    portfolioId: string, 
+    asOfDate?: string
+  ): Promise<{
+    portfolio: { id: string; name: string };
+    asOfDate: string;
+    holdings: Array<{
+      id: string;
+      weight: number;
+      company: {
+        id: string;
+        name: string;
+        ticker?: string;
+        sector?: string;
+      };
+      parameters: Array<{
+        value: any;
+        asOfDate: string;
+        source?: string;
+        parameter: {
+          id: string;
+          name: string;
+          dataType: string;
+          unit?: string;
+          description?: string;
+        };
+      }>;
+    }>;
+  }> {
+    const params = asOfDate ? { asOfDate } : {};
+    return this.request({ 
+      method: 'GET', 
+      url: `/portfolios/${portfolioId}/holdings-with-parameters`,
+      params
+    });
+  }
   
   // Client endpoints
   public async getClients(): Promise<any> {

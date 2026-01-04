@@ -16,6 +16,9 @@ esg-frontend/build/
 .env
 .env.local
 .env.*.local
+.env.production
+esg-frontend/.env
+esg-frontend/.env.*
 
 # IDE
 .vscode/
