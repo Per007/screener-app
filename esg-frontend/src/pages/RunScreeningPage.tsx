@@ -333,13 +333,6 @@ const RunScreeningPage: React.FC = () => {
   };
 
   /**
-   * Run the screening with selected portfolio and criteria set
-   * @deprecated Use handleValidateAndRun instead
-   */
-  const handleRunScreening = handleValidateAndRun;
-
-
-  /**
    * Handle delete screening result
    */
   const handleDeleteScreening = async () => {

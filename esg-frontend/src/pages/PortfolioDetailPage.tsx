@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { apiService } from '../api/apiService';
 import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import { 
@@ -65,7 +65,6 @@ interface ScreeningResult {
 
 const PortfolioDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
   const [latestScreening, setLatestScreening] = useState<ScreeningResult | null>(null);
   const [screeningHistory, setScreeningHistory] = useState<ScreeningResult[]>([]);

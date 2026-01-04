@@ -149,7 +149,7 @@ export function exportFailedHoldings(
       failureReason?: string;
     }>;
   }>,
-  format: 'csv' | 'excel',
+  exportFormat: 'csv' | 'excel',
   portfolioName: string = 'portfolio'
 ): void {
   const failedResults = results.filter(r => !r.passed);
@@ -179,7 +179,7 @@ export function exportFailedHoldings(
 
   const filename = `${portfolioName}-failed-holdings`.replace(/[^a-z0-9]/gi, '-').toLowerCase();
   
-  if (format === 'csv') {
+  if (exportFormat === 'csv') {
     exportToCSV(exportData, filename);
   } else {
     exportToExcel(exportData, filename, 'Failed Holdings');
@@ -204,7 +204,7 @@ export function exportAllHoldings(
       failureReason?: string;
     }>;
   }>,
-  format: 'csv' | 'excel',
+  exportFormat: 'csv' | 'excel',
   portfolioName: string = 'portfolio'
 ): void {
   if (results.length === 0) {
@@ -235,7 +235,7 @@ export function exportAllHoldings(
 
   const filename = `${portfolioName}-all-holdings`.replace(/[^a-z0-9]/gi, '-').toLowerCase();
   
-  if (format === 'csv') {
+  if (exportFormat === 'csv') {
     exportToCSV(exportData, filename);
   } else {
     exportToExcel(exportData, filename, 'All Holdings');
@@ -245,7 +245,7 @@ export function exportAllHoldings(
 /**
  * Export screening history to CSV/Excel
  * @param history - Array of screening results
- * @param format - 'csv' or 'excel'
+ * @param exportFormat - 'csv' or 'excel'
  * @param portfolioName - Portfolio name for filename
  */
 export function exportScreeningHistory(
@@ -264,7 +264,7 @@ export function exportScreeningHistory(
       version: string;
     };
   }>,
-  format: 'csv' | 'excel',
+  exportFormat: 'csv' | 'excel',
   portfolioName: string = 'portfolio'
 ): void {
   if (history.length === 0) {
@@ -285,7 +285,7 @@ export function exportScreeningHistory(
 
   const filename = `${portfolioName}-screening-history`.replace(/[^a-z0-9]/gi, '-').toLowerCase();
   
-  if (format === 'csv') {
+  if (exportFormat === 'csv') {
     exportToCSV(exportData, filename);
   } else {
     exportToExcel(exportData, filename, 'Screening History');
@@ -325,7 +325,7 @@ export function exportDetailedScreeningResult(
       }>;
     }>;
   },
-  format: 'csv' | 'excel',
+  exportFormat: 'csv' | 'excel',
   portfolioName: string = 'portfolio'
 ): void {
   if (!result || !result.results || result.results.length === 0) {
@@ -352,7 +352,7 @@ export function exportDetailedScreeningResult(
 
   const filename = `${portfolioName}-detailed-screening-${format(new Date(result.screenedAt), 'yyyy-MM-dd')}`.replace(/[^a-z0-9]/gi, '-').toLowerCase();
   
-  if (format === 'csv') {
+  if (exportFormat === 'csv') {
     exportToCSV(exportData, filename);
   } else {
     exportToExcel(exportData, filename, 'Detailed Results');

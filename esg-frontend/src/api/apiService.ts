@@ -63,7 +63,7 @@ class ApiService {
         } else if (!error.response && error.request) {
           // Network error - backend not reachable
           console.error('[API Service] ⚠️ Backend connection failed! Is the server running?');
-          console.error('[API Service] Attempted URL:', error.config?.baseURL + error.config?.url);
+          console.error('[API Service] Attempted URL:', (error.config?.baseURL || '') + (error.config?.url || ''));
         }
         return Promise.reject(error);
       }

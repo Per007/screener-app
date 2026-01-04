@@ -66,7 +66,7 @@ const AddRuleModal: React.FC<AddRuleModalProps> = ({
   const [failureMessage, setFailureMessage] = useState('');
   const [severity, setSeverity] = useState<'exclude' | 'warn' | 'info'>('exclude');
   const [error, setError] = useState<string | null>(null);
-  const [initialized, setInitialized] = useState(false);
+  const [, setInitialized] = useState(false);
 
   // Determine if we're in edit mode
   const isEditMode = !!editingRule;

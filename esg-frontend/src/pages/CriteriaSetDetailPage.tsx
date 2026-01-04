@@ -42,7 +42,7 @@ const CriteriaSetDetailPage: React.FC = () => {
   
   // Action states
   const [deletingRuleId, setDeletingRuleId] = useState<string | null>(null);
-  const [savingRule, setSavingRule] = useState(false);
+  const [, setSavingRule] = useState(false);
 
   /**
    * Fetches the criteria set data
