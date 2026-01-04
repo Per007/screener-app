@@ -6,7 +6,7 @@ import { BrowserRouter } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 
 // Base path for GitHub Pages - must match vite.config.ts base setting
-const basename = import.meta.env.PROD ? '/SCREENER_APP' : '/'
+const basename = import.meta.env.PROD ? '/screener-app' : '/'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -5,6 +5,6 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   // Base path for GitHub Pages deployment
-  // Must match your repository name: https://username.github.io/SCREENER_APP/
-  base: process.env.NODE_ENV === 'production' ? '/SCREENER_APP/' : '/',
+  // Must match your repository name: https://username.github.io/screener-app/
+  base: process.env.NODE_ENV === 'production' ? '/screener-app/' : '/',
 })
