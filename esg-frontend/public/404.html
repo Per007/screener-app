@@ -9,17 +9,17 @@
     // while preserving the path in sessionStorage for the app to handle
     
     // Get the repo name from the path
-    const pathSegmentsToKeep = 1; // Keep /SCREENER_APP
+    const pathSegmentsToKeep = 1; // Keep /screener-app
     
-    const location = window.location;
-    const pathParts = location.pathname.split('/');
+    const loc = window.location;
+    const pathParts = loc.pathname.split('/');
     
     // Build the redirect URL
     const basePath = pathParts.slice(0, pathSegmentsToKeep + 1).join('/');
     const remainingPath = pathParts.slice(pathSegmentsToKeep + 1).join('/');
     
     // Store the path for the SPA to pick up
-    sessionStorage.setItem('redirect', remainingPath + location.search + location.hash);
+    sessionStorage.setItem('redirect', remainingPath + loc.search + loc.hash);
     
     // Redirect to the base path (index.html)
     window.location.replace(basePath + '/');
