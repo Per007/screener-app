@@ -158,7 +158,6 @@ const RunScreeningPage: React.FC = () => {
   
   // Results state for new screening
   const [screeningResult, setScreeningResult] = useState<ScreeningResult | null>(null);
-  const [expandedCompanies, setExpandedCompanies] = useState<Set<string>>(new Set());
   
   // UI state
   const [loading, setLoading] = useState(true);
@@ -262,7 +261,6 @@ const RunScreeningPage: React.FC = () => {
       };
       
       setSelectedHistoricalResult(mappedResult);
-      setExpandedCompanies(new Set());
     } catch (err) {
       console.error('Error fetching result details:', err);
       setError('Failed to load result details');
@@ -323,7 +321,6 @@ const RunScreeningPage: React.FC = () => {
       });
       
       setScreeningResult(result);
-      setExpandedCompanies(new Set());
       
       // Refresh historical results
       fetchHistoricalResults();
@@ -341,18 +338,6 @@ const RunScreeningPage: React.FC = () => {
    */
   const handleRunScreening = handleValidateAndRun;
 
-  /**
-   * Toggle expanded state for a company's detailed results
-   */
-  const toggleCompanyExpanded = (companyId: string) => {
-    const newExpanded = new Set(expandedCompanies);
-    if (newExpanded.has(companyId)) {
-      newExpanded.delete(companyId);
-    } else {
-      newExpanded.add(companyId);
-    }
-    setExpandedCompanies(newExpanded);
-  };
 
   /**
    * Handle delete screening result
@@ -509,7 +494,7 @@ const RunScreeningPage: React.FC = () => {
         return null;
       })()}
 
-      {/* Company Results Table */}
+      {/* Company Results Table - Combined View */}
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
@@ -521,184 +506,125 @@ const RunScreeningPage: React.FC = () => {
                 Excluded
               </th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Rules Failed
+                Rule
               </th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Exclusion Reasons
+                Actual Value
               </th>
-              <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Details
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Threshold
+              </th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Excluded
               </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {result.results.map((companyResult) => {
-              // Get failed exclusion rules with their values
+            {result.results.flatMap((companyResult) => {
+              // Get only exclusion rules that failed (these are the ones that caused exclusion)
               const failedExclusionRules = companyResult.ruleResults.filter(
                 r => !r.passed && r.severity === 'exclude'
               );
-              const isExpanded = expandedCompanies.has(companyResult.company.id);
               
-              return (
-                <React.Fragment key={companyResult.company.id}>
-                  {/* Main Row */}
-                  <tr className={companyResult.passed ? 'bg-white' : 'bg-red-50'}>
+              // If company is not excluded, show just one row with company info
+              if (companyResult.passed || failedExclusionRules.length === 0) {
+                return (
+                  <tr key={companyResult.company.id} className="bg-white">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">
                         {companyResult.company.name}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      {companyResult.passed ? (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                          No
-                        </span>
-                      ) : (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        No
+                      </span>
+                    </td>
+                    <td colSpan={4} className="px-6 py-4 text-sm text-gray-500 italic">
+                      All exclusion rules passed
+                    </td>
+                  </tr>
+                );
+              }
+              
+              // If company is excluded, show one row per exclusion rule
+              return failedExclusionRules.map((ruleResult, ruleIndex) => {
+                const isFirstRule = ruleIndex === 0;
+                const rowSpan = failedExclusionRules.length;
+                
+                return (
+                  <tr 
+                    key={`${companyResult.company.id}-${ruleResult.ruleId}`}
+                    className="bg-red-50"
+                  >
+                    {/* Company Name - only show on first row, with rowspan */}
+                    {isFirstRule && (
+                      <td 
+                        rowSpan={rowSpan} 
+                        className="px-6 py-4 whitespace-nowrap border-r border-gray-200"
+                      >
+                        <div className="text-sm font-medium text-gray-900">
+                          {companyResult.company.name}
+                        </div>
+                      </td>
+                    )}
+                    {/* Company Excluded Status - only show on first row, with rowspan */}
+                    {isFirstRule && (
+                      <td 
+                        rowSpan={rowSpan} 
+                        className="px-6 py-4 whitespace-nowrap border-r border-gray-200"
+                      >
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
                           Yes
                         </span>
-                      )}
+                      </td>
+                    )}
+                    {/* Rule Name */}
+                    <td className="px-6 py-4 text-sm text-gray-900">
+                      {ruleResult.ruleName}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {companyResult.ruleResults.filter(r => !r.passed).length} / {companyResult.ruleResults.length}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500">
-                      {failedExclusionRules.length > 0 ? (
-                        <div className="max-w-md space-y-1">
-                          {failedExclusionRules.slice(0, 2).map((rule) => (
-                            <div key={rule.ruleId} className="flex items-center gap-2 text-xs">
-                              <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-medium">
-                                ✗ Excluded
-                              </span>
-                              <span className="text-gray-700">{rule.ruleName}</span>
-                              {rule.actualValue !== undefined && (
-                                <span className="text-gray-500">
-                                  (actual: <span className="font-mono text-red-600 font-medium">{String(rule.actualValue)}</span>)
-                                </span>
+                    {/* Actual Value */}
+                    <td className="px-6 py-4 text-sm font-mono">
+                      {ruleResult.actualValue !== undefined ? (
+                        <span className="text-red-700 font-medium">
+                          {String(ruleResult.actualValue)}
+                        </span>
+                      ) : (
+                        <div className="flex items-center gap-1 group relative">
+                          <span className="text-amber-600 italic font-medium">N/A</span>
+                          <svg 
+                            className="w-4 h-4 text-amber-500 cursor-help" 
+                            fill="none" 
+                            stroke="currentColor" 
+                            viewBox="0 0 24 24"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          {/* Tooltip */}
+                          <div className="absolute left-0 top-6 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                            <div className="font-semibold mb-1">Missing Data</div>
+                            <div>
+                              {ruleResult.failureReason && ruleResult.failureReason.includes('Missing value for parameter:') ? (
+                                <span>{ruleResult.failureReason}</span>
+                              ) : (
+                                <span>No data available for this parameter. Import parameter values to see actual results.</span>
                               )}
                             </div>
-                          ))}
-                          {failedExclusionRules.length > 2 && (
-                            <div className="text-gray-400 text-xs">
-                              +{failedExclusionRules.length - 2} more...
-                            </div>
-                          )}
+                          </div>
                         </div>
-                      ) : (
-                        <span className="text-green-600 text-xs">✓ All exclusion rules passed</span>
                       )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button
-                        onClick={() => toggleCompanyExpanded(companyResult.company.id)}
-                        className="text-navy-600 hover:text-navy-900 inline-flex items-center"
-                      >
-                        {isExpanded ? 'Hide' : 'Show'}
-                        <svg
-                          className={`ml-1 w-4 h-4 transform transition-transform ${isExpanded ? 'rotate-180' : ''}`}
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </button>
+                    {/* Threshold */}
+                    <td className="px-6 py-4 text-sm text-gray-600 font-mono">
+                      {ruleResult.threshold || '-'}
+                    </td>
+                    {/* Rule Excluded Status */}
+                    <td className="px-6 py-4 whitespace-nowrap text-xs">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-red-100 text-red-800 font-medium">Yes</span>
                     </td>
                   </tr>
-                  
-                  {/* Expanded Details Row */}
-                  {isExpanded && (
-                    <tr>
-                      <td colSpan={5} className="px-6 py-4 bg-gray-50">
-                        <div className="text-sm font-medium text-gray-700 mb-2">Rule Details:</div>
-                        <table className="min-w-full divide-y divide-gray-200 border border-gray-200 rounded">
-                          <thead className="bg-gray-100">
-                            <tr>
-                              <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Rule</th>
-                              <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Actual Value</th>
-                              <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Threshold</th>
-                              <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                              <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Excluded</th>
-                            </tr>
-                          </thead>
-                          <tbody className="bg-white divide-y divide-gray-200">
-                            {companyResult.ruleResults.map((ruleResult) => (
-                              <tr 
-                                key={ruleResult.ruleId}
-                                className={!ruleResult.passed && ruleResult.severity === 'exclude' ? 'bg-red-50' : ''}
-                              >
-                                <td className="px-4 py-2 text-sm text-gray-900">
-                                  {ruleResult.ruleName}
-                                </td>
-                                <td className="px-4 py-2 text-sm font-mono">
-                                  {ruleResult.actualValue !== undefined ? (
-                                    <span className={ruleResult.passed ? 'text-green-700 font-medium' : 'text-red-700 font-medium'}>
-                                      {String(ruleResult.actualValue)}
-                                    </span>
-                                  ) : (
-                                    <div className="flex items-center gap-1 group relative">
-                                      <span className="text-amber-600 italic font-medium">N/A</span>
-                                      <svg 
-                                        className="w-4 h-4 text-amber-500 cursor-help" 
-                                        fill="none" 
-                                        stroke="currentColor" 
-                                        viewBox="0 0 24 24"
-                                      >
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                      </svg>
-                                      {/* Tooltip */}
-                                      <div className="absolute left-0 top-6 w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                                        <div className="font-semibold mb-1">Missing Data</div>
-                                        <div>
-                                          {ruleResult.failureReason && ruleResult.failureReason.includes('Missing value for parameter:') ? (
-                                            <span>{ruleResult.failureReason}</span>
-                                          ) : (
-                                            <span>No data available for this parameter. Import parameter values to see actual results.</span>
-                                          )}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  )}
-                                </td>
-                                <td className="px-4 py-2 text-sm text-gray-600 font-mono">
-                                  {ruleResult.threshold || '-'}
-                                </td>
-                                <td className="px-4 py-2 whitespace-nowrap">
-                                  {ruleResult.passed ? (
-                                    <span className="inline-flex items-center text-green-600 text-xs">
-                                      <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                      </svg>
-                                      Passed
-                                    </span>
-                                  ) : (
-                                    <span className="inline-flex items-center text-red-600 text-xs">
-                                      <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                                      </svg>
-                                      Failed
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="px-4 py-2 whitespace-nowrap text-xs">
-                                  {/* Show exclusion status: Yes if rule failed AND severity is exclude */}
-                                  {!ruleResult.passed && ruleResult.severity === 'exclude' ? (
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-red-100 text-red-800 font-medium">Yes</span>
-                                  ) : ruleResult.severity === 'exclude' ? (
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-green-100 text-green-800">No</span>
-                                  ) : (
-                                    <span className="text-gray-400">N/A ({ruleResult.severity})</span>
-                                  )}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </td>
-                    </tr>
-                  )}
-                </React.Fragment>
-              );
+                );
+              });
             })}
           </tbody>
         </table>
