@@ -42,8 +42,8 @@ jobs:
       - name: Build frontend
         working-directory: ./esg-frontend
         env:
-          # Use the secret for the production API URL
-          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+          # Production API URL - uses secret if available, otherwise fallback to Render URL
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL || 'https://screener-app.onrender.com' }}
           NODE_ENV: production
         run: npm run build
 
