@@ -14,8 +14,11 @@ const LoginPage: React.FC = () => {
     setError(null);
 
     try {
-      await login(email, password);
-      navigate('/portfolios');
+      const result = await login(email, password);
+      // Navigate immediately after successful login
+      if (result) {
+        navigate('/portfolios');
+      }
     } catch (err) {
       setError('Login failed. Please check your credentials and try again.');
     }

@@ -1,6 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { apiService } from '../../api/apiService';
+
+interface CriteriaSet {
+  id: string;
+  name: string;
+  version: string;
+}
 
 const RegionScreening: React.FC = () => {
   const [region, setRegion] = useState('');
@@ -10,11 +16,31 @@ const RegionScreening: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<any>(null);
 
+  // Dynamic data state
+  const [criteriaSets, setCriteriaSets] = useState<CriteriaSet[]>([]);
+  const [loadingData, setLoadingData] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const criteriaSetsData = await apiService.getCriteriaSets();
+        setCriteriaSets(criteriaSetsData);
+      } catch (err) {
+        console.error('Failed to fetch criteria sets:', err);
+        setError('Failed to load criteria sets. Please refresh the page.');
+      } finally {
+        setLoadingData(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    
+
     try {
       const response = await apiService.screenByRegion({
         region,
@@ -29,6 +55,14 @@ const RegionScreening: React.FC = () => {
     }
   };
 
+  if (loadingData) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-navy-600"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -36,7 +70,7 @@ const RegionScreening: React.FC = () => {
           ← Screening Tools
         </Link>
         <h1 className="text-2xl font-semibold text-gray-900 mt-2">Region Analysis</h1>
-        <p className="text-gray-600 mt-1">Note: This is a placeholder implementation. Region screening will be enhanced when region data is available.</p>
+        <p className="text-gray-600 mt-1">Screen companies by geographic region</p>
       </div>
 
       <div className="bg-white shadow rounded-lg">
@@ -74,7 +108,11 @@ const RegionScreening: React.FC = () => {
                   onChange={(e) => setCriteriaSetId(e.target.value)}
                 >
                   <option value="">Select criteria set...</option>
-                  <option value="d87a02a8-6009-44e6-af2c-4af61462ea44">Standard ESG Screen v2.1</option>
+                  {criteriaSets.map((cs) => (
+                    <option key={cs.id} value={cs.id}>
+                      {cs.name} v{cs.version}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>

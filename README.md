@@ -144,6 +144,7 @@ node test_backend.js
 
 ## 📖 Documentation
 
+- `SECURITY.md` - Security best practices and setup guide
 - `FINAL_SUMMARY.md` - Project overview and accomplishments
 - `IMPLEMENTATION_SUMMARY.md` - Technical implementation details
 - `NEW_ENDPOINTS_DOCUMENTATION.md` - API endpoint documentation
@@ -152,6 +153,8 @@ node test_backend.js
 
 ## 🔒 Environment Variables
 
+**⚠️ CRITICAL: Never commit `.env` files to Git or share credentials publicly!**
+
 Create a `.env` file in the root directory with:
 
 ```env
@@ -159,6 +162,36 @@ DATABASE_URL="your_database_url"
 JWT_SECRET="your_jwt_secret_key"
 PORT=3000
 ```
+
+### Setup Instructions
+
+1. Copy the example file:
+   ```bash
+   cp .env.example .env
+   ```
+
+2. Fill in your actual values (see `.env.example` for details)
+
+3. Generate a strong JWT secret:
+   ```bash
+   # Linux/Mac:
+   openssl rand -base64 32
+   
+   # Windows PowerShell:
+   [Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Minimum 0 -Maximum 256 }))
+   ```
+
+**📖 For complete security guidelines, see [SECURITY.md](SECURITY.md)**
+
+## 🔒 Security
+
+This application implements multiple security layers:
+- JWT-based authentication with strong secret requirements
+- Row Level Security (RLS) on Supabase tables
+- Password hashing with bcrypt
+- Environment variable validation
+
+See [SECURITY.md](SECURITY.md) for detailed security documentation and best practices.
 
 ## 📝 License
 

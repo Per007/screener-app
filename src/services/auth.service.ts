@@ -3,7 +3,10 @@ import jwt from 'jsonwebtoken';
 import prisma from '../lib/prisma';
 import { AppError } from '../middleware/error-handler';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'default-secret';
+const JWT_SECRET = process.env.JWT_SECRET as string;
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable must be set');
+}
 const JWT_EXPIRES_IN = '7d';
 
 export async function register(email: string, password: string, name: string, role: string = 'analyst') {
@@ -12,7 +15,7 @@ export async function register(email: string, password: string, name: string, ro
     throw new AppError('Email already registered', 400);
   }
 
-  const passwordHash = await bcrypt.hash(password, 10);
+  const passwordHash = await bcrypt.hash(password, 8);
 
   const user = await prisma.user.create({
     data: {
