@@ -4,14 +4,14 @@ import { getAuthToken, clearAuthToken } from '../utils/authUtils';
 class ApiService {
   private instance: AxiosInstance;
   private baseURL: string;
-  
+
   constructor() {
     this.baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-    
+
     // Backend routes are mounted directly without /api prefix
     // So we use the base URL as-is
     console.log('[API Service] Initializing with baseURL:', this.baseURL);
-    
+
     this.instance = axios.create({
       baseURL: this.baseURL,
       timeout: parseInt(import.meta.env.VITE_API_TIMEOUT) || 30000,
@@ -19,7 +19,7 @@ class ApiService {
         'Content-Type': 'application/json',
       },
     });
-    
+
     // Request interceptor
     this.instance.interceptors.request.use(
       (config) => {
@@ -38,7 +38,7 @@ class ApiService {
         return Promise.reject(error);
       }
     );
-    
+
     // Response interceptor
     this.instance.interceptors.response.use(
       (response) => {
@@ -55,7 +55,7 @@ class ApiService {
           code: error.code,
           request: error.request ? 'Request made but no response' : 'No request made'
         });
-        
+
         if (error.response?.status === 401) {
           // Token expired or invalid
           clearAuthToken();
@@ -69,7 +69,7 @@ class ApiService {
       }
     );
   }
-  
+
   public async request<T>(config: AxiosRequestConfig): Promise<T> {
     try {
       const response: AxiosResponse<T> = await this.instance.request(config);
@@ -79,8 +79,8 @@ class ApiService {
         const axiosError = error as AxiosError;
         if (axiosError.response) {
           // Server responded with a status code outside 2xx
-          const errorMessage = typeof axiosError.response.data === 'string' 
-            ? axiosError.response.data 
+          const errorMessage = typeof axiosError.response.data === 'string'
+            ? axiosError.response.data
             : (axiosError.response.data as any)?.message || axiosError.message;
           throw new Error(errorMessage);
         } else if (axiosError.request) {
@@ -98,7 +98,7 @@ class ApiService {
       throw new Error('Unknown error occurred');
     }
   }
-  
+
   // Health check method to test backend connection
   public async checkBackendConnection(): Promise<boolean> {
     try {
@@ -111,16 +111,16 @@ class ApiService {
       return false;
     }
   }
-  
+
   // Portfolio endpoints
   public async getPortfolios(): Promise<any> {
     return this.request({ method: 'GET', url: '/portfolios' });
   }
-  
+
   public async getPortfolio(id: string): Promise<any> {
     return this.request({ method: 'GET', url: `/portfolios/${id}` });
   }
-  
+
   public async createPortfolio(data: { name: string; clientId?: string }): Promise<any> {
     return this.request({ method: 'POST', url: '/portfolios', data });
   }
@@ -147,7 +147,7 @@ class ApiService {
    * @param asOfDate - Optional date to filter parameter values (ISO string)
    */
   public async getPortfolioHoldingsWithParameters(
-    portfolioId: string, 
+    portfolioId: string,
     asOfDate?: string
   ): Promise<{
     portfolio: { id: string; name: string };
@@ -176,13 +176,13 @@ class ApiService {
     }>;
   }> {
     const params = asOfDate ? { asOfDate } : {};
-    return this.request({ 
-      method: 'GET', 
+    return this.request({
+      method: 'GET',
       url: `/portfolios/${portfolioId}/holdings-with-parameters`,
       params
     });
   }
-  
+
   // Client endpoints
   public async getClients(): Promise<any> {
     return this.request({ method: 'GET', url: '/clients' });
@@ -203,7 +203,7 @@ class ApiService {
   public async deleteClient(id: string): Promise<void> {
     return this.request({ method: 'DELETE', url: `/clients/${id}` });
   }
-  
+
   public async screenPortfolio(id: string, data: any): Promise<any> {
     return this.request({ method: 'POST', url: `/portfolios/${id}/screen`, data });
   }
@@ -228,10 +228,10 @@ class ApiService {
    * Validate that all parameters required by the criteria set are available
    * for all companies in the portfolio. Call this BEFORE running a screening.
    */
-  public async validatePortfolioScreening(data: { 
-    portfolioId: string; 
-    criteriaSetId: string; 
-    asOfDate?: string 
+  public async validatePortfolioScreening(data: {
+    portfolioId: string;
+    criteriaSetId: string;
+    asOfDate?: string
   }): Promise<{
     isValid: boolean;
     totalCompanies: number;
@@ -270,16 +270,16 @@ class ApiService {
   }> {
     return this.request({ method: 'POST', url: '/screen/validate/companies', data });
   }
-  
+
   // Company endpoints
   public async getCompanies(filters?: any): Promise<any> {
     return this.request({ method: 'GET', url: '/companies', params: filters });
   }
-  
+
   public async getCompany(id: string): Promise<any> {
     return this.request({ method: 'GET', url: `/companies/${id}` });
   }
-  
+
   // Parameter endpoints
   public async getParameters(): Promise<any> {
     return this.request({ method: 'GET', url: '/parameters' });
@@ -288,12 +288,12 @@ class ApiService {
   public async getParameter(id: string): Promise<any> {
     return this.request({ method: 'GET', url: `/parameters/${id}` });
   }
-  
+
   // Criteria sets endpoints
   public async getCriteriaSets(): Promise<any> {
     return this.request({ method: 'GET', url: '/criteria-sets' });
   }
-  
+
   public async getCriteriaSet(id: string): Promise<any> {
     return this.request({ method: 'GET', url: `/criteria-sets/${id}` });
   }
@@ -349,28 +349,28 @@ class ApiService {
   public async deleteCriteriaSet(criteriaSetId: string): Promise<any> {
     return this.request({ method: 'DELETE', url: `/criteria-sets/${criteriaSetId}` });
   }
-  
+
   // Screening tools endpoints
   public async screenIndividualCompany(data: any): Promise<any> {
     return this.request({ method: 'POST', url: '/screen/company', data });
   }
-  
+
   public async screenMultipleCompanies(data: any): Promise<any> {
     return this.request({ method: 'POST', url: '/screen/companies', data });
   }
-  
+
   public async screenBySector(data: any): Promise<any> {
     return this.request({ method: 'POST', url: '/screen/sector', data });
   }
-  
+
   public async screenByRegion(data: any): Promise<any> {
     return this.request({ method: 'POST', url: '/screen/region', data });
   }
-  
+
   public async screenCustom(data: any): Promise<any> {
     return this.request({ method: 'POST', url: '/screen/custom', data });
   }
-  
+
   // Import endpoints
   public async validateCSV(formData: FormData): Promise<any> {
     return this.request({
@@ -395,43 +395,61 @@ class ApiService {
   }
 
   public async downloadTemplate(): Promise<void> {
-    // Create a hidden link to trigger download
     const token = getAuthToken();
     const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-    
-    const link = document.createElement('a');
-    link.href = `${baseURL}/import/template`;
-    link.setAttribute('download', 'portfolio-template.csv');
-    
+
+    console.log('[downloadTemplate] Starting download...');
+
     // For authenticated download, we need to fetch and create blob
     const response = await fetch(`${baseURL}/import/template`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
     });
-    
+
+    console.log('[downloadTemplate] Response status:', response.status);
+
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[downloadTemplate] Error response:', errorText);
       throw new Error('Failed to download template');
     }
-    
+
     const blob = await response.blob();
+    console.log('[downloadTemplate] Blob created, size:', blob.size, 'type:', blob.type);
+
     const url = URL.createObjectURL(blob);
+    console.log('[downloadTemplate] Blob URL created:', url);
+
+    // Create and configure the download link
+    const link = document.createElement('a');
     link.href = url;
+    link.setAttribute('download', 'portfolio-template.csv');
+    link.style.display = 'none';
+
+    // Append to body, trigger click, and cleanup after a delay
+    // The delay ensures the download is initiated before we revoke the URL
     document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    console.log('[downloadTemplate] Link clicked');
+
+    // Cleanup after a short delay to allow the download to start
+    setTimeout(() => {
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      console.log('[downloadTemplate] Cleanup completed');
+    }, 100);
   }
-  
+
   // Auth endpoints
   public async login(email: string, password: string): Promise<any> {
-    return this.request({ 
-      method: 'POST', 
-      url: '/auth/login', 
+    return this.request({
+      method: 'POST',
+      url: '/auth/login',
       data: { email, password }
     });
   }
-  
+
   public async logout(): Promise<any> {
     return this.request({ method: 'POST', url: '/auth/logout' });
   }

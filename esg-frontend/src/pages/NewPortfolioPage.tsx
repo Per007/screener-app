@@ -95,7 +95,7 @@ interface ImportResult {
 const NewPortfolioPage: React.FC = () => {
   // Tab state
   const [activeTab, setActiveTab] = useState<'manual' | 'csv'>('manual');
-  
+
   // Common state
   const [name, setName] = useState('');
   const [clientId, setClientId] = useState('');
@@ -170,13 +170,13 @@ const NewPortfolioPage: React.FC = () => {
 
     // Parse headers (first line)
     const headers = lines[0].split(',').map(h => h.trim().replace(/^["']|["']$/g, ''));
-    
+
     // Parse data rows (show first 5 for preview)
     const rows = lines.slice(1, 6).map(line => {
       const values: string[] = [];
       let current = '';
       let inQuotes = false;
-      
+
       for (let i = 0; i < line.length; i++) {
         const char = line[i];
         if (char === '"' && !inQuotes) {
@@ -316,9 +316,13 @@ const NewPortfolioPage: React.FC = () => {
    * Download CSV template
    */
   const handleDownloadTemplate = async () => {
+    console.log('[DEBUG] handleDownloadTemplate called');
     try {
+      console.log('[DEBUG] Calling apiService.downloadTemplate()');
       await apiService.downloadTemplate();
+      console.log('[DEBUG] Download completed successfully');
     } catch (err) {
+      console.error('[DEBUG] Download failed:', err);
       setError('Failed to download template');
     }
   };
@@ -354,21 +358,19 @@ const NewPortfolioPage: React.FC = () => {
             <nav className="-mb-px flex space-x-8">
               <button
                 onClick={() => setActiveTab('manual')}
-                className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'manual'
+                className={`py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'manual'
                     ? 'border-navy-500 text-navy-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
+                  }`}
               >
                 Manual Entry
               </button>
               <button
                 onClick={() => setActiveTab('csv')}
-                className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'csv'
+                className={`py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'csv'
                     ? 'border-navy-500 text-navy-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
+                  }`}
               >
                 CSV Upload
               </button>
@@ -461,11 +463,10 @@ const NewPortfolioPage: React.FC = () => {
                   onDrop={handleDrop}
                   onDragOver={handleDragOver}
                   onDragLeave={handleDragLeave}
-                  className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                    isDragging
+                  className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${isDragging
                       ? 'border-navy-500 bg-navy-50'
                       : 'border-gray-300 hover:border-gray-400'
-                  }`}
+                    }`}
                 >
                   <DocumentArrowUpIcon className="mx-auto h-12 w-12 text-gray-400" />
                   <div className="mt-4">
@@ -628,74 +629,74 @@ const NewPortfolioPage: React.FC = () => {
                     validationResult.parameterAnalysis.existingParameters.length > 0 ||
                     validationResult.parameterAnalysis.newParameters.length > 0
                   ) && (
-                    <div className="border border-gray-200 rounded-lg overflow-hidden">
-                      <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
-                        <h3 className="text-sm font-medium text-gray-700">
-                          ESG Parameter Mapping Preview
-                        </h3>
-                        <p className="text-xs text-gray-500 mt-1">
-                          Shows which CSV columns will map to existing parameters or create new ones
-                        </p>
-                      </div>
-                      <div className="divide-y divide-gray-100">
-                        {/* Existing Parameters */}
-                        {validationResult.parameterAnalysis.existingParameters.map((param, idx) => (
-                          <div key={`existing-${idx}`} className="px-4 py-3 flex items-start">
-                            <CheckCircleIcon className="h-5 w-5 text-green-500 mr-3 mt-0.5 flex-shrink-0" />
-                            <div className="flex-1">
-                              <div className="flex items-center">
-                                <span className="font-medium text-gray-900">{param.name}</span>
-                                <span className="ml-2 px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-800">
-                                  existing
-                                </span>
-                                <span className="ml-2 text-xs text-gray-500">
-                                  ({param.dataType})
-                                </span>
-                              </div>
-                              {param.csvColumnName !== param.name && (
-                                <p className="text-xs text-gray-500 mt-1">
-                                  CSV column: "{param.csvColumnName}"
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                        
-                        {/* New Parameters */}
-                        {validationResult.parameterAnalysis.newParameters.map((param, idx) => (
-                          <div key={`new-${idx}`} className="px-4 py-3 flex items-start bg-blue-50">
-                            <PlusCircleIcon className="h-5 w-5 text-blue-500 mr-3 mt-0.5 flex-shrink-0" />
-                            <div className="flex-1">
-                              <div className="flex items-center">
-                                <span className="font-medium text-gray-900">{param.name}</span>
-                                <span className="ml-2 px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
-                                  NEW
-                                </span>
-                                <span className="ml-2 text-xs text-gray-500">
-                                  (inferred: {param.inferredType})
-                                </span>
-                              </div>
-                              {param.sampleValues.length > 0 && (
-                                <p className="text-xs text-gray-500 mt-1">
-                                  Sample values: {param.sampleValues.map(v => String(v)).join(', ')}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                      
-                      {/* Summary */}
-                      {validationResult.parameterAnalysis.newParameters.length > 0 && (
-                        <div className="px-4 py-3 bg-blue-50 border-t border-blue-100">
-                          <p className="text-sm text-blue-700">
-                            <strong>{validationResult.parameterAnalysis.newParameters.length}</strong> new ESG parameter{validationResult.parameterAnalysis.newParameters.length !== 1 ? 's' : ''} will be created during import.
-                            These parameters can then be used in rules and criteria sets.
+                      <div className="border border-gray-200 rounded-lg overflow-hidden">
+                        <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
+                          <h3 className="text-sm font-medium text-gray-700">
+                            ESG Parameter Mapping Preview
+                          </h3>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Shows which CSV columns will map to existing parameters or create new ones
                           </p>
                         </div>
-                      )}
-                    </div>
-                  )}
+                        <div className="divide-y divide-gray-100">
+                          {/* Existing Parameters */}
+                          {validationResult.parameterAnalysis.existingParameters.map((param, idx) => (
+                            <div key={`existing-${idx}`} className="px-4 py-3 flex items-start">
+                              <CheckCircleIcon className="h-5 w-5 text-green-500 mr-3 mt-0.5 flex-shrink-0" />
+                              <div className="flex-1">
+                                <div className="flex items-center">
+                                  <span className="font-medium text-gray-900">{param.name}</span>
+                                  <span className="ml-2 px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-800">
+                                    existing
+                                  </span>
+                                  <span className="ml-2 text-xs text-gray-500">
+                                    ({param.dataType})
+                                  </span>
+                                </div>
+                                {param.csvColumnName !== param.name && (
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    CSV column: "{param.csvColumnName}"
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+
+                          {/* New Parameters */}
+                          {validationResult.parameterAnalysis.newParameters.map((param, idx) => (
+                            <div key={`new-${idx}`} className="px-4 py-3 flex items-start bg-blue-50">
+                              <PlusCircleIcon className="h-5 w-5 text-blue-500 mr-3 mt-0.5 flex-shrink-0" />
+                              <div className="flex-1">
+                                <div className="flex items-center">
+                                  <span className="font-medium text-gray-900">{param.name}</span>
+                                  <span className="ml-2 px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+                                    NEW
+                                  </span>
+                                  <span className="ml-2 text-xs text-gray-500">
+                                    (inferred: {param.inferredType})
+                                  </span>
+                                </div>
+                                {param.sampleValues.length > 0 && (
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    Sample values: {param.sampleValues.map(v => String(v)).join(', ')}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Summary */}
+                        {validationResult.parameterAnalysis.newParameters.length > 0 && (
+                          <div className="px-4 py-3 bg-blue-50 border-t border-blue-100">
+                            <p className="text-sm text-blue-700">
+                              <strong>{validationResult.parameterAnalysis.newParameters.length}</strong> new ESG parameter{validationResult.parameterAnalysis.newParameters.length !== 1 ? 's' : ''} will be created during import.
+                              These parameters can then be used in rules and criteria sets.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                   {/* Import Result */}
                   {importResult && (
