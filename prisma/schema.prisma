@@ -19,6 +19,8 @@ model User {
   createdAt    DateTime @default(now())
 
   screeningResults ScreeningResult[]
+
+  @@index([clientId])
 }
 
 // Client organization
@@ -44,6 +46,8 @@ model Portfolio {
 
   holdings         PortfolioHolding[]
   screeningResults ScreeningResult[]
+
+  @@index([clientId])
 }
 
 // Company entity
@@ -74,6 +78,8 @@ model Parameter {
 
   companyValues    CompanyParameterValue[]
   clientParameters ClientParameter[]
+
+  @@index([clientId])
 }
 
 // Company's value for a parameter
@@ -88,6 +94,7 @@ model CompanyParameterValue {
   source      String?
 
   @@unique([companyId, parameterId, asOfDate])
+  @@index([parameterId])
 }
 
 // Portfolio holding (join table)
@@ -100,6 +107,7 @@ model PortfolioHolding {
   weight      Float     // percentage of portfolio
 
   @@unique([portfolioId, companyId])
+  @@index([companyId])
 }
 
 // Versioned criteria set
@@ -118,6 +126,8 @@ model CriteriaSet {
 
   rules            Rule[]
   screeningResults ScreeningResult[]
+
+  @@index([clientId])
 }
 
 // Individual rule within a criteria set
@@ -130,6 +140,8 @@ model Rule {
   expression     String // JSON-encoded expression tree
   failureMessage String?
   severity       String      @default("exclude") // exclude | warn | info
+
+  @@index([criteriaSetId])
 }
 
 // Historical screening result
@@ -146,6 +158,10 @@ model ScreeningResult {
   summary       String // JSON-encoded summary
 
   companyResults ScreeningCompanyResult[]
+
+  @@index([portfolioId])
+  @@index([criteriaSetId])
+  @@index([userId])
 }
 
 // Per-company screening result
@@ -157,6 +173,9 @@ model ScreeningCompanyResult {
   company           Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
   passed            Boolean
   ruleResults       String // JSON-encoded detailed results
+
+  @@index([screeningResultId])
+  @@index([companyId])
 }
 
 // Client's selected parameters with custom thresholds
@@ -176,5 +195,7 @@ model ClientParameter {
 
   createdAt DateTime @default(now())
 
+
   @@unique([clientId, parameterId])
+  @@index([parameterId])
 }

@@ -1,6 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { apiService } from '../../api/apiService';
+
+interface Company {
+  id: string;
+  name: string;
+}
+
+interface CriteriaSet {
+  id: string;
+  name: string;
+  version: string;
+}
 
 const MultipleCompaniesScreening: React.FC = () => {
   const [companyIds, setCompanyIds] = useState<string[]>([]);
@@ -9,6 +20,31 @@ const MultipleCompaniesScreening: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<any>(null);
+
+  // Dynamic data state
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [criteriaSets, setCriteriaSets] = useState<CriteriaSet[]>([]);
+  const [loadingData, setLoadingData] = useState(true);
+
+  useEffect(() => {
+    const fetchInitialData = async () => {
+      try {
+        const [companiesData, criteriaSetsData] = await Promise.all([
+          apiService.getCompanies(),
+          apiService.getCriteriaSets()
+        ]);
+        setCompanies(companiesData);
+        setCriteriaSets(criteriaSetsData);
+      } catch (err) {
+        console.error('Failed to fetch initial data:', err);
+        setError('Failed to load form data. Please refresh the page.');
+      } finally {
+        setLoadingData(false);
+      }
+    };
+
+    fetchInitialData();
+  }, []);
 
   const handleCompanySelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selectedOptions = Array.from(e.target.selectedOptions, option => option.value);
@@ -19,7 +55,7 @@ const MultipleCompaniesScreening: React.FC = () => {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    
+
     try {
       const response = await apiService.screenMultipleCompanies({
         companyIds,
@@ -33,6 +69,14 @@ const MultipleCompaniesScreening: React.FC = () => {
       setLoading(false);
     }
   };
+
+  if (loadingData) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-navy-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -59,11 +103,11 @@ const MultipleCompaniesScreening: React.FC = () => {
                   className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-navy-500 focus:border-navy-500 sm:text-sm rounded-md h-32"
                   onChange={handleCompanySelect}
                 >
-                  <option value="0dd09684-e763-4b82-baae-b22a5deafba6">GreenTech Corp</option>
-                  <option value="48a15da8-13eb-42e0-9cd6-f662f30e2312">OilCo Industries</option>
-                  <option value="c3cc9061-0b49-4c3f-92e0-01cdcea2baaa">CleanEnergy Inc</option>
-                  <option value="4df7b2c8-4c50-4b64-a552-a95849f9545b">FastFashion Ltd</option>
-                  <option value="90c147eb-ef0e-4463-a544-7ba8338be4f9">SustainableGoods Co</option>
+                  {companies.map((company) => (
+                    <option key={company.id} value={company.id}>
+                      {company.name}
+                    </option>
+                  ))}
                 </select>
               </div>
               <p className="mt-2 text-sm text-gray-500">Selected: {companyIds.length} companies</p>
@@ -83,7 +127,11 @@ const MultipleCompaniesScreening: React.FC = () => {
                   onChange={(e) => setCriteriaSetId(e.target.value)}
                 >
                   <option value="">Select criteria set...</option>
-                  <option value="d87a02a8-6009-44e6-af2c-4af61462ea44">Standard ESG Screen v2.1</option>
+                  {criteriaSets.map((cs) => (
+                    <option key={cs.id} value={cs.id}>
+                      {cs.name} v{cs.version}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>

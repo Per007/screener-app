@@ -1,6 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { apiService } from '../../api/apiService';
+
+interface Company {
+  id: string;
+  name: string;
+}
+
+interface CriteriaSet {
+  id: string;
+  name: string;
+  version: string;
+}
 
 const IndividualCompanyScreening: React.FC = () => {
   const [companyId, setCompanyId] = useState('');
@@ -10,11 +21,36 @@ const IndividualCompanyScreening: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<any>(null);
 
+  // Dynamic data state
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [criteriaSets, setCriteriaSets] = useState<CriteriaSet[]>([]);
+  const [loadingData, setLoadingData] = useState(true);
+
+  useEffect(() => {
+    const fetchInitialData = async () => {
+      try {
+        const [companiesData, criteriaSetsData] = await Promise.all([
+          apiService.getCompanies(),
+          apiService.getCriteriaSets()
+        ]);
+        setCompanies(companiesData);
+        setCriteriaSets(criteriaSetsData);
+      } catch (err) {
+        console.error('Failed to fetch initial data:', err);
+        setError('Failed to load form data. Please refresh the page.');
+      } finally {
+        setLoadingData(false);
+      }
+    };
+
+    fetchInitialData();
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    
+
     try {
       const response = await apiService.screenIndividualCompany({
         companyId,
@@ -28,6 +64,14 @@ const IndividualCompanyScreening: React.FC = () => {
       setLoading(false);
     }
   };
+
+  if (loadingData) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-navy-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -55,9 +99,11 @@ const IndividualCompanyScreening: React.FC = () => {
                   onChange={(e) => setCompanyId(e.target.value)}
                 >
                   <option value="">Select company...</option>
-                  <option value="0dd09684-e763-4b82-baae-b22a5deafba6">GreenTech Corp</option>
-                  <option value="48a15da8-13eb-42e0-9cd6-f662f30e2312">OilCo Industries</option>
-                  <option value="c3cc9061-0b49-4c3f-92e0-01cdcea2baaa">CleanEnergy Inc</option>
+                  {companies.map((company) => (
+                    <option key={company.id} value={company.id}>
+                      {company.name}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -76,7 +122,11 @@ const IndividualCompanyScreening: React.FC = () => {
                   onChange={(e) => setCriteriaSetId(e.target.value)}
                 >
                   <option value="">Select criteria set...</option>
-                  <option value="d87a02a8-6009-44e6-af2c-4af61462ea44">Standard ESG Screen v2.1</option>
+                  {criteriaSets.map((cs) => (
+                    <option key={cs.id} value={cs.id}>
+                      {cs.name} v{cs.version}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>

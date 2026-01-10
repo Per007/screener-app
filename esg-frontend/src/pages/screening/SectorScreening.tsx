@@ -1,6 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { apiService } from '../../api/apiService';
+
+interface CriteriaSet {
+  id: string;
+  name: string;
+  version: string;
+}
 
 const SectorScreening: React.FC = () => {
   const [sector, setSector] = useState('');
@@ -10,11 +16,47 @@ const SectorScreening: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<any>(null);
 
+  // Dynamic data state
+  const [criteriaSets, setCriteriaSets] = useState<CriteriaSet[]>([]);
+  const [loadingData, setLoadingData] = useState(true);
+
+  // Hardcoded sectors for now, could be fetched if an endpoint existed
+  const sectors = [
+    'Technology',
+    'Energy',
+    'Consumer',
+    'Utilities',
+    'Industrials',
+    'Financials',
+    'Healthcare',
+    'Materials',
+    'Real Estate',
+    'Communication Services',
+    'Consumer Discretionary',
+    'Consumer Staples'
+  ];
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const criteriaSetsData = await apiService.getCriteriaSets();
+        setCriteriaSets(criteriaSetsData);
+      } catch (err) {
+        console.error('Failed to fetch criteria sets:', err);
+        setError('Failed to load criteria sets. Please refresh the page.');
+      } finally {
+        setLoadingData(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    
+
     try {
       const response = await apiService.screenBySector({
         sector,
@@ -28,6 +70,14 @@ const SectorScreening: React.FC = () => {
       setLoading(false);
     }
   };
+
+  if (loadingData) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-navy-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -55,11 +105,9 @@ const SectorScreening: React.FC = () => {
                   onChange={(e) => setSector(e.target.value)}
                 >
                   <option value="">Select sector...</option>
-                  <option value="Technology">Technology</option>
-                  <option value="Energy">Energy</option>
-                  <option value="Consumer">Consumer</option>
-                  <option value="Utilities">Utilities</option>
-                  <option value="Industrials">Industrials</option>
+                  {sectors.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -78,7 +126,11 @@ const SectorScreening: React.FC = () => {
                   onChange={(e) => setCriteriaSetId(e.target.value)}
                 >
                   <option value="">Select criteria set...</option>
-                  <option value="d87a02a8-6009-44e6-af2c-4af61462ea44">Standard ESG Screen v2.1</option>
+                  {criteriaSets.map((cs) => (
+                    <option key={cs.id} value={cs.id}>
+                      {cs.name} v{cs.version}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
